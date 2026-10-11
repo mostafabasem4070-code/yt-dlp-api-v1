@@ -234,6 +234,43 @@ async function handleCopyAllWorkers() {
         showToast('تعذر جلب الروابط لنسخها.', 'error');
     }
 }
+
+async function handleClearAllWorkers() {
+    try {
+        const res = await apiFetch('/api/security/settings');
+        const data = await res.json();
+        const workers = data.worker_pool || [];
+        
+        if (workers.length === 0) {
+            showToast('لا توجد خوادم بروكسي مضافة لحذفها.', 'error');
+            return;
+        }
+
+        if (!confirm(`⚠️ تحذير: هل أنت متأكد من رغبتك في حذف جميع خوادم البروكسي (${workers.length} رابط) دفعة واحدة؟\nلن تتمكن من استرجاعها إلا بإعادة إضافتها.`)) {
+            return;
+        }
+
+        const btn = document.getElementById('btnClearAllWorkers');
+        if (btn) btn.disabled = true;
+
+        const clearRes = await apiFetch('/api/security/workers/clear', {
+            method: 'POST'
+        });
+        const clearData = await clearRes.json();
+        if (clearRes.ok) {
+            showToast(clearData.message || 'تم حذف جميع روابط البروكسي بنجاح!');
+            renderWorkerChips(clearData.worker_pool || []);
+        } else {
+            showToast(clearData.detail || 'فشل حذف الروابط.', 'error');
+        }
+    } catch (e) {
+        showToast('تعذر الاتصال بالخادم لحذف الروابط.', 'error');
+    } finally {
+        const btn = document.getElementById('btnClearAllWorkers');
+        if (btn) btn.disabled = false;
+    }
+}
+
 async function handleToggleAdvancedSettings() {
     // Collect all values
     const isStrict = document.getElementById('strictModeToggle') ? document.getElementById('strictModeToggle').checked : false;

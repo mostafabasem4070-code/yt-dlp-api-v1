@@ -387,6 +387,14 @@ def remove_worker_url(url: str) -> Tuple[bool, str, List[str]]:
     return True, "تم حذف الرابط بنجاح.", pool
 
 
+def clear_all_worker_urls() -> Tuple[bool, str, List[str]]:
+    """حذف جميع روابط Cloudflare Workers من القائمة دفعة واحدة"""
+    cfg = _load_config()
+    cfg["worker_pool"] = []
+    _save_config(cfg)
+    return True, "تم حذف جميع روابط البروكسي بنجاح.", []
+
+
 def regenerate_api_key() -> str:
     """توليد مفتاح API جديد وحفظه فورياً"""
     cfg = _load_config()

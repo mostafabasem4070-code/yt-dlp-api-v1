@@ -57,7 +57,8 @@ from security_manager import (
     test_domain_authorization,
     is_request_authorized,
     add_worker_url,
-    remove_worker_url
+    remove_worker_url,
+    clear_all_worker_urls
 )
 from google_auth_service import (
     start_google_login_session,
@@ -344,6 +345,13 @@ def remove_worker_endpoint(payload: WorkerRequest, request: Request, admin: bool
     ok, msg, pool = remove_worker_url(payload.url)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg, "worker_pool": pool}
+
+
+@app.post("/api/security/workers/clear", tags=["Security & Auth"])
+def clear_workers_endpoint(request: Request, admin: bool = Depends(require_admin)):
+    """حذف جميع روابط Cloudflare Workers دفعة واحدة"""
+    ok, msg, pool = clear_all_worker_urls()
     return {"success": True, "message": msg, "worker_pool": pool}
 
 
