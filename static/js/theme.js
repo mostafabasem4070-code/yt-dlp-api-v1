@@ -11,7 +11,7 @@
         if (saved === 'light' || saved === 'dark') {
             return saved;
         }
-        return 'dark'; // الوضع الداكن هو الافتراضي
+        return 'light'; // ثيم Modernize الافتراضي هو الوضع الفاتح الأنيق
     }
 
     function applyTheme(theme) {

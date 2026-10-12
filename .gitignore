@@ -11,3 +11,5 @@ ENV/
 .vscode/
 *.log
 security_config.json
+deploy_to_github.bat
+deploy_to_github.ps1

@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" data-theme="dark">
+<html lang="ar" dir="rtl" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مركز التحكم السحابي وحماية السيرفر | YouTube API Hub</title>
-    <meta name="description" content="لوحة تحكم متطورة لإدارة استخراج روابط يوتيوب، حماية الدومينات، إدارة الكوكيز، ومراقبة موارد السيرفر الحية">
+    <title>Modernize | مركز التحكم السحابي وحماية السيرفر | YouTube API Hub</title>
+    <meta name="description" content="لوحة تحكم Modernize متطورة لإدارة استخراج روابط يوتيوب، حماية الدومينات، إدارة الكوكيز، ومراقبة موارد السيرفر الحية">
 
-    <!-- Google Fonts -->
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+
+    <!-- Google Fonts: Cairo + JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Modular CSS Styles -->
+    <!-- Modernize Modular CSS Stylesheets -->
     <link rel="stylesheet" href="/static/css/theme.css">
     <link rel="stylesheet" href="/static/css/layout.css">
     <link rel="stylesheet" href="/static/css/components.css">
@@ -27,42 +30,44 @@
 
         <!-- ==================== SIDEBAR ==================== -->
         <aside class="sidebar" id="appSidebar">
+            <!-- Sidebar Header / Modernize Logo -->
             <div class="sidebar-header">
-                <div class="brand-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                <a href="/dashboard" class="brand-logo-wrap" title="Modernize YouTube API Hub">
+                    <svg width="154" height="26" viewBox="0 0 174 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20.1369 26C22.8983 26 25.1842 23.7425 24.6732 21.0288C24.3528 19.3274 23.8679 17.6594 23.2235 16.0502C21.9602 12.8958 20.1087 10.0295 17.7745 7.61522C15.4403 5.2009 12.6692 3.28575 9.61949 1.97913C8.11383 1.33406 6.55481 0.843538 4.96489 0.512196C2.26154 -0.0511821 0 2.23858 0 5V21C0 23.7614 2.23858 26 5 26H20.1369Z" fill="#5D87FF"/>
+                        <g style="mix-blend-mode: multiply">
+                            <path d="M13.7013 26C10.9399 26 8.65395 23.7425 9.16502 21.0288C9.48544 19.3274 9.97031 17.6594 10.6147 16.0502C11.878 12.8958 13.7295 10.0295 16.0637 7.61522C18.3979 5.2009 21.169 3.28575 24.2187 1.97913C25.7244 1.33406 27.2834 0.843538 28.8733 0.512196C31.5767 -0.0511821 33.8382 2.23858 33.8382 5V21C33.8382 23.7614 31.5996 26 28.8382 26H13.7013Z" fill="#49BEFF"/>
+                        </g>
+                        <text x="44" y="20" fill="currentColor" font-family="'Cairo', sans-serif" font-size="18" font-weight="800" letter-spacing="-0.5">MODERNIZE</text>
                     </svg>
-                </div>
-                <div class="brand-info">
-                    <div class="brand-title">YouTube API Hub</div>
-                    <div class="brand-subtitle">
-                        <span class="status-indicator-dot"></span>
-                        <span>سيرفر سحابي متصل</span>
-                    </div>
-                </div>
+                </a>
             </div>
 
+            <!-- Sidebar Navigation -->
             <nav class="sidebar-nav">
-                <div class="nav-category">المراقبة والتشخيص</div>
+                <div class="nav-category">الرئيسية والمراقبة</div>
 
                 <button class="nav-item active" onclick="switchNavTab('tab-overview', 'نظرة عامة والتشخيص السحابي', this)">
                     <div class="nav-item-content">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        <!-- LayoutDashboardIcon -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
                         <span>نظرة عامة والتشخيص</span>
                     </div>
                 </button>
 
                 <button class="nav-item" onclick="switchNavTab('tab-resources', 'مراقبة موارد السيرفر الحية (CPU & RAM Charts)', this)">
                     <div class="nav-item-content">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        <!-- ChartAreaIcon -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M7 16l4-7 4 4 5-8"></path></svg>
                         <span>موارد السيرفر (CPU/RAM)</span>
                     </div>
-                    <span class="nav-badge pulse" id="sideCpuBadge">Live</span>
+                    <span class="nav-badge" id="sideCpuBadge">Live</span>
                 </button>
 
                 <button class="nav-item" onclick="switchNavTab('tab-components', 'فحص مكونات ومحركات النظام', this)">
                     <div class="nav-item-content">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                        <!-- ServerIcon -->
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
                         <span>محركات النظام</span>
                     </div>
                     <span class="nav-badge" id="sideCompBadge">8 فواحص</span>
@@ -72,6 +77,7 @@
 
                 <button class="nav-item" onclick="switchNavTab('tab-security', 'الأمان وحماية الدومينات ومفتاح API', this)">
                     <div class="nav-item-content">
+                        <!-- UserShieldIcon -->
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                         <span>الأمان وحماية الدومينات</span>
                     </div>
@@ -80,6 +86,7 @@
 
                 <button class="nav-item" onclick="switchNavTab('tab-cookies', 'إدارة كوكيز يوتيوب وصلاحية الجلسة', this)">
                     <div class="nav-item-content">
+                        <!-- CookieIcon -->
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="8" cy="9" r="1.5"></circle><circle cx="15" cy="11" r="1.5"></circle><circle cx="11" cy="16" r="1.5"></circle></svg>
                         <span>إدارة الكوكيز والصلاحية</span>
                     </div>
@@ -90,6 +97,7 @@
 
                 <button class="nav-item" onclick="switchNavTab('tab-extractor', 'مستخرج الروابط الذكي والبث المقسم', this)">
                     <div class="nav-item-content">
+                        <!-- VideoPlayIcon -->
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                         <span>مستخرج الروابط الذكي</span>
                     </div>
@@ -97,30 +105,41 @@
 
                 <button class="nav-item" onclick="switchNavTab('tab-worker', 'بروكسي الحافة (Cloudflare Workers)', this)">
                     <div class="nav-item-content">
+                        <!-- CloudIcon -->
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
-                        <span>بروكسي الحافة (Cloudflare)</span>
+                        <span>بروكسي الحافة (Workers)</span>
                     </div>
                 </button>
 
                 <button class="nav-item" onclick="switchNavTab('tab-logs', 'سجل العمليات المباشر الحي (Live Console)', this)">
                     <div class="nav-item-content">
+                        <!-- TerminalIcon -->
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
                         <span>سجل العمليات المباشر</span>
                     </div>
                 </button>
             </nav>
 
+            <!-- Modernize ExtraBox (Rocket Card) -->
+            <div class="sidebar-extrabox">
+                <div class="extrabox-content">
+                    <div class="extrabox-title">محرك YouTube Hub</div>
+                    <div class="extrabox-desc">إصدار yt-dlp: <strong id="sideYtVersion">v2024.12+</strong></div>
+                    <button class="extrabox-btn" onclick="handleTriggerUpdate()">
+                        <span>فحص وتحديث</span>
+                    </button>
+                </div>
+                <img src="/static/images/background/rocket.png" alt="Rocket" class="extrabox-img">
+            </div>
+
+            <!-- Sidebar Footer -->
             <div class="sidebar-footer">
                 <div class="footer-system-info">
-                    <span>إصدار yt-dlp:</span>
-                    <strong id="sideYtVersion">v2024.12+</strong>
-                </div>
-                <div class="footer-system-info">
                     <span>تشغيل الخادم:</span>
-                    <span id="sideUptimeText">--</span>
+                    <strong id="sideUptimeText">--</strong>
                 </div>
-                <button class="btn-action danger" style="width: 100%; justify-content: center; margin-top: 6px;" onclick="handleLogout()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <button class="btn-action danger" style="width: 100%; justify-content: center; margin-top: 4px;" onclick="handleLogout()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span>قفل لوحة التحكم</span>
                 </button>
             </div>
@@ -133,7 +152,7 @@
             <header class="topbar">
                 <div class="topbar-right">
                     <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="القائمة">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                     </button>
                     <div class="topbar-title-wrap">
                         <h1 class="topbar-title" id="pageTitleText">نظرة عامة والتشخيص</h1>
@@ -147,15 +166,21 @@
                         <span>النظام يعمل بنجاح ومستقر</span>
                     </span>
 
-                    <button class="btn-action cyan" onclick="runDiagnosticProbe()">
+                    <button class="btn-action light-primary" onclick="runDiagnosticProbe()" title="تشغيل فحص تجريبي حي">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
-                        <span>فحص تشخيصي حي</span>
+                        <span>فحص تشخيصي</span>
                     </button>
 
-                    <!-- زر تبديل الثيم الفاتح والداكن -->
-                    <button class="btn-theme-toggle" id="btnThemeToggle" title="تبديل الثيم">
-                        <!-- Dynamic SVG Icon by theme.js -->
-                    </button>
+                    <!-- Theme Toggle Button -->
+                    <button class="btn-theme-toggle" id="btnThemeToggle" title="تبديل الثيم"></button>
+
+                    <!-- User Profile Avatar (Modernize DD) -->
+                    <div class="topbar-profile" onclick="handleLogout()" title="مدير النظام (Admin) - اضغط لقفل الجلسة">
+                        <div class="topbar-avatar-wrap">
+                            <img src="/static/images/users/avatar-1.jpg" alt="Admin">
+                            <span class="avatar-online-dot"></span>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -173,8 +198,8 @@
                             </div>
                             <div class="stat-info">
                                 <div class="stat-label">محرك Javascript (Deno/Node)</div>
-                                <div id="statJsRuntime" class="stat-value" style="color: var(--accent-cyan);">Deno & Node ✓</div>
-                                <div class="stat-subtext">لفك تشفير وتوقيع الروابط</div>
+                                <div id="statJsRuntime" class="stat-value" style="color: var(--primary);">Deno & Node ✓</div>
+                                <div class="stat-subtext">تفكيك تشفير وتوقيع الروابط</div>
                             </div>
                         </div>
 
@@ -184,8 +209,8 @@
                             </div>
                             <div class="stat-info">
                                 <div class="stat-label">إصدار yt-dlp النشط</div>
-                                <div id="statYtVersion" class="stat-value" style="color: var(--primary);">2024.12+</div>
-                                <div class="stat-subtext">تحديث تلقائي دوري</div>
+                                <div id="statYtVersion" class="stat-value" style="color: var(--secondary);">2024.12+</div>
+                                <div class="stat-subtext">تحديث تلقائي مستمر</div>
                             </div>
                         </div>
 
@@ -218,36 +243,36 @@
                         <div class="card-header">
                             <div class="card-header-title">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                                <span>نظرة سريعة على موارد السيرفر الحية</span>
+                                <span>نظرة سريعة على موارد السيرفر الحية (Real-Time Metrics)</span>
                             </div>
-                            <button class="btn-action" onclick="switchNavTab('tab-resources', 'مراقبة موارد السيرفر الحية (CPU & RAM Charts)')">
+                            <button class="btn-action light-primary" onclick="switchNavTab('tab-resources', 'مراقبة موارد السيرفر الحية (CPU & RAM Charts)')">
                                 <span>عرض الرسوم البيانية الكاملة ←</span>
                             </button>
                         </div>
 
                         <div class="mini-telemetry-grid">
                             <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:rgba(6,182,212,0.12); color:var(--accent-cyan);">
+                                <div class="mini-telemetry-icon" style="background:var(--primary-light); color:var(--primary);">
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect></svg>
                                 </div>
                                 <div class="mini-telemetry-info">
                                     <span class="mini-telemetry-label">استهلاك المعالج (CPU)</span>
-                                    <span class="mini-telemetry-val" id="overviewCpuVal" style="color:var(--accent-cyan);">0%</span>
+                                    <span class="mini-telemetry-val" id="overviewCpuVal" style="color:var(--primary);">0%</span>
                                 </div>
                             </div>
 
                             <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:rgba(139,92,246,0.12); color:#8b5cf6;">
+                                <div class="mini-telemetry-icon" style="background:var(--secondary-light); color:var(--secondary);">
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 19v-3M10 19v-3M14 19v-3M18 19v-3M6 8V5M10 8V5M14 8V5M18 8V5M4 11h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z"></path></svg>
                                 </div>
                                 <div class="mini-telemetry-info">
                                     <span class="mini-telemetry-label">الذاكرة العشوائية (RAM)</span>
-                                    <span class="mini-telemetry-val" id="overviewRamVal" style="color:#a78bfa;">0%</span>
+                                    <span class="mini-telemetry-val" id="overviewRamVal" style="color:var(--secondary);">0%</span>
                                 </div>
                             </div>
 
                             <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:rgba(16,185,129,0.12); color:var(--success);">
+                                <div class="mini-telemetry-icon" style="background:var(--success-light); color:var(--success);">
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
                                 </div>
                                 <div class="mini-telemetry-info">
@@ -257,7 +282,7 @@
                             </div>
 
                             <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:rgba(245,158,11,0.12); color:var(--warning);">
+                                <div class="mini-telemetry-icon" style="background:var(--warning-light); color:var(--warning);">
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
                                 </div>
                                 <div class="mini-telemetry-info">
@@ -380,7 +405,7 @@
 
                                 <div class="telemetry-meta-row" style="margin-top: 14px;">
                                     <span class="telemetry-meta-item">عدد الأنوية المتاحة: <strong id="cpuCoresVal">1</strong> Cores</span>
-                                    <span class="telemetry-meta-item" style="color:var(--accent-cyan);">معدل الاستجابة فوري</span>
+                                    <span class="telemetry-meta-item" style="color:var(--primary);">معدل الاستجابة فوري</span>
                                 </div>
                             </div>
 
@@ -449,11 +474,11 @@
                                 <div style="display:flex; justify-content:space-between; margin:10px 0;">
                                     <div>
                                         <div style="font-size:0.78rem; color:var(--text-muted);">إرسال البيانات (Sent):</div>
-                                        <strong id="netSentVal" style="font-family:var(--font-mono); color:var(--accent-cyan); font-size:1.1rem;">0 MB</strong>
+                                        <strong id="netSentVal" style="font-family:var(--font-mono); color:var(--primary); font-size:1.1rem;">0 MB</strong>
                                     </div>
                                     <div>
                                         <div style="font-size:0.78rem; color:var(--text-muted);">استقبال البيانات (Recv):</div>
-                                        <strong id="netRecvVal" style="font-family:var(--font-mono); color:#a78bfa; font-size:1.1rem;">0 MB</strong>
+                                        <strong id="netRecvVal" style="font-family:var(--font-mono); color:var(--secondary); font-size:1.1rem;">0 MB</strong>
                                     </div>
                                 </div>
                                 <div class="telemetry-meta-row" style="margin-top: 14px;">
@@ -472,9 +497,9 @@
                         <div class="card-header">
                             <div class="card-header-title">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-                                <span>مصفوفة فحص مكونات النظام (System Health Matrix)</span>
+                                <span>مصفوفة فحص مكونات ومحركات النظام (System Health Matrix)</span>
                             </div>
-                            <button class="btn-action cyan" onclick="runDiagnosticProbe()">
+                            <button class="btn-action light-primary" onclick="runDiagnosticProbe()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
                                 <span>فحص تشخيصي لجميع المحركات</span>
                             </button>
@@ -488,7 +513,7 @@
                 <!-- ==================== TAB 4: SECURITY & DOMAIN FIREWALL ==================== -->
                 <section id="tab-security" class="tab-panel">
                     
-                    <!-- API KEY INTEGRATION CARD (NEW!) -->
+                    <!-- API KEY INTEGRATION CARD -->
                     <div class="card" style="margin-bottom: 24px; border-color: var(--primary);">
                         <div class="card-header">
                             <div class="card-header-title">
@@ -500,24 +525,24 @@
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                                     <span>نسخ مفتاح API</span>
                                 </button>
-                                <button class="btn-action" style="color:var(--danger); border-color:rgba(239,68,68,0.3);" onclick="handleRegenerateApiKey()">
+                                <button class="btn-action" style="color:var(--danger); border-color:rgba(250,137,107,0.3);" onclick="handleRegenerateApiKey()">
                                     <span>توليد مفتاح جديد</span>
                                 </button>
                             </div>
                         </div>
 
                         <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:14px; line-height:1.6;">
-                            يسمح هذا المفتاح لمنصة Laravel باستخراج الروابط وتخطي جدار الحماية حتى في حال تفعيل الوضع الصارم. ضع هذا المفتاح في ملف <code style="color:var(--accent-cyan); font-family:var(--font-mono);">.env</code> الخاص بمنصة لارافيل:
+                            يسمح هذا المفتاح لمنصة Laravel باستخراج الروابط وتخطي جدار الحماية حتى في حال تفعيل الوضع الصارم. ضع هذا المفتاح في ملف <code style="color:var(--primary); font-family:var(--font-mono);">.env</code> الخاص بمنصة لارافيل:
                         </p>
 
                         <div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-input); border:1px solid var(--border-card); border-radius:var(--radius-md); padding:12px 18px; margin-bottom:14px;">
-                            <code id="currentApiKeyDisplay" style="font-family:var(--font-mono); font-size:1.05rem; font-weight:700; color:var(--accent-cyan); letter-spacing:0.5px; direction:ltr;">--</code>
+                            <code id="currentApiKeyDisplay" style="font-family:var(--font-mono); font-size:1.05rem; font-weight:700; color:var(--primary); letter-spacing:0.5px; direction:ltr;">--</code>
                             <span class="comp-badge healthy">نشط ومعتمد</span>
                         </div>
 
                         <div style="background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:12px 16px;">
                             <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:6px;">الكود المطلوب في ملف لارافيل <code style="color:var(--text-main);">c:\laragon\www\lms\.env</code>:</div>
-                            <code style="display:block; font-family:var(--font-mono); font-size:0.85rem; color:#67e8f9; direction:ltr; text-align:left;">
+                            <code style="display:block; font-family:var(--font-mono); font-size:0.85rem; color:var(--primary); direction:ltr; text-align:left;">
                                 YTDLP_API_KEY=sec_aab36b5c92f3631d717935b7cfa5da0e
                             </code>
                         </div>
@@ -555,12 +580,12 @@
                                     <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;">الوضع الصارم (Strict Whitelist Mode)</div>
                                     <div style="font-size:0.78rem; color:var(--text-muted);">حظر أي طلب لا يحتوي ترويسة Origin أو Referer مطابقة تماماً للقائمة.</div>
                                 </div>
-                                <input type="checkbox" id="strictModeToggle" style="width:22px; height:22px; cursor:pointer;" onchange="handleToggleAdvancedSettings()">
+                                <input type="checkbox" id="strictModeToggle" style="width:20px; height:20px; cursor:pointer;" onchange="handleToggleAdvancedSettings()">
                             </div>
                         </div>
 
                         <!-- Advanced Settings (IPv6, OAuth2, PO Token) -->
-                        <div class="card" style="margin-top: 24px;">
+                        <div class="card">
                             <div class="card-header">
                                 <div class="card-header-title">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
@@ -576,7 +601,7 @@
                                     <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;">تفعيل IPv6 الإجباري (Force IPv6)</div>
                                     <div style="font-size:0.78rem; color:var(--text-muted);">يجبر الأداة على استخدام IPv6 لتخطي حظر الـ IP. (يجب تفعيله من Railway أيضاً)</div>
                                 </div>
-                                <input type="checkbox" id="forceIpv6Toggle" style="width:22px; height:22px; cursor:pointer;">
+                                <input type="checkbox" id="forceIpv6Toggle" style="width:20px; height:20px; cursor:pointer;">
                             </div>
 
                             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; padding-top:14px; border-top:1px solid var(--border-subtle);">
@@ -584,7 +609,7 @@
                                     <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;">استخدام OAuth2 (بدل الكوكيز)</div>
                                     <div style="font-size:0.78rem; color:var(--text-muted);">تفعيل المصادقة عبر OAuth2 (قد تتطلب مصادقة المتصفح في السجل).</div>
                                 </div>
-                                <input type="checkbox" id="useOauth2Toggle" style="width:22px; height:22px; cursor:pointer;">
+                                <input type="checkbox" id="useOauth2Toggle" style="width:20px; height:20px; cursor:pointer;">
                             </div>
 
                             <div style="margin-bottom:16px; padding-top:14px; border-top:1px solid var(--border-subtle);">
@@ -598,7 +623,7 @@
                             </div>
                         </div>
 
-                        <!-- Live Domain Tester Tool (NEW!) & Change Password -->
+                        <!-- Live Domain Tester Tool & Change Password -->
                         <div style="display:flex; flex-direction:column; gap:20px;">
                             
                             <!-- Test Domain Tool Card -->
@@ -614,7 +639,7 @@
                                 </p>
                                 <div class="input-inline-wrap">
                                     <input type="text" id="testDomainInput" placeholder="مثال: https://lms.myplatform.com" onkeydown="if(event.key==='Enter') handleTestDomain()">
-                                    <button class="btn-action cyan" onclick="handleTestDomain()">
+                                    <button class="btn-action light-primary" onclick="handleTestDomain()">
                                         <span>فحص الدومين</span>
                                     </button>
                                 </div>
@@ -657,12 +682,12 @@
                 <section id="tab-cookies" class="tab-panel">
                     
                     <!-- NEW COOKIE EXPIRY HERO BANNER & COUNTDOWN -->
-                    <div class="card" id="cookieExpiryHeroCard" style="margin-bottom: 24px; border-color: var(--success); background: linear-gradient(135deg, var(--bg-card) 0%, rgba(16,185,129,0.06) 100%);">
+                    <div class="card" id="cookieExpiryHeroCard" style="margin-bottom: 24px; border-color: var(--success); background: linear-gradient(135deg, var(--bg-card) 0%, rgba(19,222,185,0.06) 100%);">
                         <!-- Populated dynamically by cookies.js -->
                     </div>
 
                     <!-- GOOGLE ACCOUNT LOGIN CARD -->
-                    <div class="card" style="margin-bottom: 24px; border-color: rgba(66,133,244,0.4); background: linear-gradient(135deg, var(--bg-card) 0%, rgba(66,133,244,0.05) 100%);">
+                    <div class="card" style="margin-bottom: 24px; border-color: rgba(93,135,255,0.3); background: linear-gradient(135deg, var(--bg-card) 0%, rgba(93,135,255,0.04) 100%);">
                         <div class="card-header">
                             <div class="card-header-title">
                                 <!-- Google G Icon -->
@@ -674,20 +699,20 @@
                                 </svg>
                                 <span>تسجيل الدخول بحساب Google تلقائياً</span>
                             </div>
-                            <span class="comp-badge cyan" style="font-size:0.75rem;">استخراج كوكيز من نفس الـ IP</span>
+                            <span class="comp-badge primary" style="font-size:0.75rem;">استخراج كوكيز من نفس الـ IP</span>
                         </div>
 
                         <div style="font-size:0.86rem; color:var(--text-muted); margin-bottom:16px; line-height:1.7;">
-                            يفتح النظام متصفح <strong style="color:var(--text-main);">Chromium</strong> على السيرفر مباشرةً، تسجّل الدخول بحسابك، ثم يستخرج الكوكيز تلقائياً من <strong style="color:var(--accent-cyan);">نفس عنوان IP</strong> الخادم — مما يضمن توافق الكوكيز مع IPv4/IPv6 وتجنّب الحظر.
+                            يفتح النظام متصفح <strong style="color:var(--text-main);">Chromium</strong> على السيرفر مباشرةً، تسجّل الدخول بحسابك، ثم يستخرج الكوكيز تلقائياً من <strong style="color:var(--primary);">نفس عنوان IP</strong> الخادم — مما يضمن توافق الكوكيز مع IPv4/IPv6 وتجنّب الحظر.
                         </div>
 
                         <!-- Auth Status Panel -->
-                        <div id="googleAuthStatusPanel" style="padding:14px; background:rgba(0,0,0,0.15); border-radius:10px; margin-bottom:14px; min-height:60px;">
+                        <div id="googleAuthStatusPanel" style="padding:14px; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); margin-bottom:14px; min-height:60px;">
                             <div style="color:var(--text-muted); font-size:0.84rem;">جاري التحقق من الحالة...</div>
                         </div>
 
                         <!-- Info Note -->
-                        <div style="font-size:0.78rem; color:var(--text-muted); padding-top:10px; border-top:1px solid var(--border-color);">
+                        <div style="font-size:0.78rem; color:var(--text-muted); padding-top:10px; border-top:1px solid var(--border-subtle);">
                             <strong>ملاحظة:</strong> يحتاج السيرفر لدعم <strong>VNC/noVNC</strong> لعرض نافذة المتصفح عن بُعد، أو يمكن استخدام وضع <em>headless</em> مع تمرير بيانات الدخول تلقائياً (OAuth2).
                         </div>
                     </div>
@@ -700,14 +725,14 @@
                                 <span>مركز إدارة وتحديث كوكيز يوتيوب</span>
                             </div>
                             <div style="display:flex; gap:10px; align-items:center;">
-                                <span class="nav-badge pulse" id="cookieCountBadge">0 كوكي</span>
+                                <span class="nav-badge" id="cookieCountBadge">0 كوكي</span>
                                 <button class="btn-action" onclick="loadCookieStatus()">فحص الكوكيز الحالية</button>
-                                <button class="btn-action" style="color:#f87171; border-color:rgba(239,68,68,0.3);" onclick="clearCookiesConfirm()">تفريغ الكوكيز (وضع الزائر)</button>
+                                <button class="btn-action" style="color:var(--danger); border-color:rgba(250,137,107,0.3);" onclick="clearCookiesConfirm()">تفريغ الكوكيز (وضع الزائر)</button>
                             </div>
                         </div>
 
                         <div style="margin-bottom: 14px; font-size: 0.88rem; color: var(--text-muted);">
-                            المسار النشط لملف الكوكيز على الخادم: <code id="cookiePathLabel" style="color: var(--accent-cyan); font-family: var(--font-mono);">/app/cookies.txt</code>
+                            المسار النشط لملف الكوكيز على الخادم: <code id="cookiePathLabel" style="color: var(--primary); font-family: var(--font-mono);">/app/cookies.txt</code>
                         </div>
 
                         <div class="form-group">
@@ -769,7 +794,7 @@
 
                         <div class="input-inline-wrap">
                             <input type="text" id="extractUrlInput" placeholder="ضع رابط فيديو يوتيوب هنا (مثال: https://www.youtube.com/watch?v=dQw4w9WgXcQ)" onkeydown="if(event.key==='Enter') handleExtractVideo()">
-                            <button id="btnExtract" class="btn-action cyan" onclick="handleExtractVideo()">
+                            <button id="btnExtract" class="btn-action primary" onclick="handleExtractVideo()">
                                 <span>استخراج الروابط فوراً</span>
                             </button>
                         </div>
@@ -807,7 +832,7 @@
                                     <span>قائمة خوادم Cloudflare Workers (Worker Pool)</span>
                                 </div>
                                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                    <button class="btn-action cyan" onclick="handleCopyAllWorkers()" title="نسخ جميع روابط الـ Workers">
+                                    <button class="btn-action light-primary" onclick="handleCopyAllWorkers()" title="نسخ جميع روابط الـ Workers">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                                         <span>نسخ جميع الروابط</span>
                                     </button>
@@ -863,7 +888,7 @@
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                                     <span>نسخ السجل</span>
                                 </button>
-                                <button class="btn-action" style="padding:5px 12px; font-size:0.78rem; color:#f87171; border-color:rgba(239,68,68,0.3);" onclick="clearTerminalLogs()">
+                                <button class="btn-action" style="padding:5px 12px; font-size:0.78rem; color:var(--danger); border-color:rgba(250,137,107,0.3);" onclick="clearTerminalLogs()">
                                     <span>مسح الشاشة</span>
                                 </button>
                                 <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; color:#94a3b8; cursor:pointer;">
@@ -887,7 +912,7 @@
     <div id="authLockOverlay" class="auth-lock-overlay">
         <div class="lock-box">
             <div class="lock-box-icon">
-                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                     <rect x="3" y="11" width="18" height="11" rx="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
@@ -898,7 +923,7 @@
                 <div class="form-group">
                     <input type="password" id="adminPasswordInput" class="form-input" style="text-align:center; font-size:1.1rem; letter-spacing:2px;" required placeholder="••••••••" autofocus>
                 </div>
-                <button type="submit" id="btnLoginSubmit" class="btn-action primary" style="width:100%; justify-content:center; padding:12px; font-size:1rem;">
+                <button type="submit" id="btnLoginSubmit" class="btn-action primary" style="width:100%; justify-content:center; padding:11px; font-size:0.95rem;">
                     <span>دخول لوحة التحكم</span>
                 </button>
             </form>
@@ -906,10 +931,10 @@
     </div>
 
     <!-- ==================== INTERACTIVE REMOTE BROWSER MODAL ==================== -->
-    <div id="remoteBrowserModal" class="auth-lock-overlay" style="display:none; z-index:99999; backdrop-filter:blur(8px); background:rgba(10,14,23,0.88); align-items:center; justify-content:center; padding:16px;">
-        <div class="remote-browser-container" style="background:var(--bg-card); border:1px solid rgba(66,133,244,0.3); border-radius:14px; width:100%; max-width:1100px; max-height:94vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); overflow:hidden;">
+    <div id="remoteBrowserModal" class="auth-lock-overlay" style="display:none; z-index:99999; backdrop-filter:blur(10px); background:rgba(17,28,45,0.85); align-items:center; justify-content:center; padding:16px;">
+        <div class="remote-browser-container" style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-lg); width:100%; max-width:1100px; max-height:94vh; display:flex; flex-direction:column; box-shadow:var(--shadow-elevated); overflow:hidden;">
             <!-- Modal Header / Titlebar -->
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid var(--border-color); background:rgba(0,0,0,0.25); gap:12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border-subtle); background:var(--bg-card-hover); gap:12px;">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                     <!-- Google icon -->
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -921,7 +946,7 @@
                     <div>
                         <div style="font-size:0.95rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:8px;">
                             <span>نافذة المتصفح المباشرة - تسجيل دخول Google / YouTube</span>
-                            <span id="remoteBrowserStatusBadge" class="comp-badge cyan" style="font-size:0.7rem;">بانتظار تسجيل الدخول</span>
+                            <span id="remoteBrowserStatusBadge" class="comp-badge primary" style="font-size:0.7rem;">بانتظار تسجيل الدخول</span>
                         </div>
                         <div id="remoteBrowserUrlBar" style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:650px;">
                             https://accounts.google.com/ServiceLogin...
@@ -936,7 +961,7 @@
                     <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://accounts.google.com/ServiceLogin?service=youtube&hl=ar')" title="فتح صفحة دخول Google المباشرة">
                         🔐 <span>دخول Google</span>
                     </button>
-                    <button class="btn-action cyan" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://stackoverflow.com/users/login')" title="تسجيل الدخول عبر Google SSO لتفادي كشف البوت">
+                    <button class="btn-action light-primary" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://stackoverflow.com/users/login')" title="تسجيل الدخول عبر Google SSO لتفادي كشف البوت">
                         🌐 <span>دخول بديل (SSO)</span>
                     </button>
                     <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="reloadRemoteBrowser()" title="إعادة تحميل الصفحة">
@@ -960,8 +985,7 @@
             </div>
 
             <!-- Interactive Toolbar at bottom -->
-            <div style="padding:12px 18px; border-top:1px solid var(--border-color); background:rgba(0,0,0,0.25); display:flex; flex-direction:column; gap:10px;">
-                <!-- Input and typing controls -->
+            <div style="padding:12px 18px; border-top:1px solid var(--border-subtle); background:var(--bg-card-hover); display:flex; flex-direction:column; gap:10px;">
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <input type="text" id="browserTypeInput" class="form-input" style="flex:1; min-width:240px; font-size:0.9rem;" placeholder="اكتب البريد الإلكتروني أو كلمة المرور هنا واضغط إرسال..." onkeydown="if(event.key==='Enter') sendBrowserTypedText(true)">
                     <button class="btn-action primary" onclick="sendBrowserTypedText(false)" style="white-space:nowrap;">
@@ -974,10 +998,9 @@
                     <button class="btn-action" onclick="sendBrowserKey('Backspace')">⌫ مسح</button>
                     <button class="btn-action" onclick="sendBrowserKey('Tab')">Tab ⇥</button>
                 </div>
-                <!-- Helpful Tip -->
                 <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
                     <span>💡 <strong>طريقة الاستخدام:</strong> اضغط بالماوس على حقل البريد في الصورة بالأعلى لتحديده، ثم اكتب في الشريط واضغط "كتابة و Enter". بمجرد قبول الحساب والدخول سيتم حفظ الكوكيز تلقائياً!</span>
-                    <span id="remoteBrowserCountdown" style="color:var(--accent-cyan); font-weight:700;"></span>
+                    <span id="remoteBrowserCountdown" style="color:var(--primary); font-weight:700;"></span>
                 </div>
             </div>
         </div>

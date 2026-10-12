@@ -1,6 +1,6 @@
 /* ==========================================================================
-   CHARTS & TELEMETRY LIVE MONITORING STYLES
-   YouTube API Hub - Cloud Control Center
+   MODERNIZE CHARTS & TELEMETRY LIVE MONITORING STYLES
+   Inspired by Modernize ApexCharts & Vuetify Metrics
    ========================================================================== */
 
 /* Telemetry Main Container */
@@ -49,41 +49,40 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .telemetry-icon.cpu {
-    background: rgba(6, 182, 212, 0.12);
-    color: var(--accent-cyan);
-    border: 1px solid rgba(6, 182, 212, 0.25);
+    background: var(--primary-light);
+    color: var(--primary);
 }
 
 .telemetry-icon.ram {
-    background: rgba(139, 92, 246, 0.12);
-    color: #8b5cf6;
-    border: 1px solid rgba(139, 92, 246, 0.25);
+    background: var(--secondary-light);
+    color: var(--secondary);
 }
 
 .telemetry-title {
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--text-main);
 }
 
 .telemetry-subtitle {
-    font-size: 0.78rem;
-    color: var(--text-muted);
+    font-size: 0.76rem;
+    color: var(--text-subtle);
     margin-top: 2px;
 }
 
 .telemetry-current-val {
-    font-size: 1.85rem;
-    font-weight: 900;
+    font-size: 1.75rem;
+    font-weight: 800;
     font-family: var(--font-mono);
     color: var(--text-main);
 }
 
-.telemetry-current-val.cpu { color: var(--accent-cyan); }
-.telemetry-current-val.ram { color: #a78bfa; }
+.telemetry-current-val.cpu { color: var(--primary); }
+.telemetry-current-val.ram { color: var(--secondary); }
 
 /* Canvas Chart Wrapper */
 .chart-canvas-wrap {
@@ -105,7 +104,7 @@
     justify-content: space-between;
     padding-top: 14px;
     border-top: 1px solid var(--border-subtle);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
 }
 
@@ -134,13 +133,19 @@
 }
 
 .mini-telemetry-card {
-    background-color: var(--bg-card);
+    background-color: var(--bg-surface);
     border: 1px solid var(--border-card);
     border-radius: var(--radius-md);
     padding: 16px 18px;
     display: flex;
     align-items: center;
     gap: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    transition: transform var(--transition-normal);
+}
+
+.mini-telemetry-card:hover {
+    transform: translateY(-2px);
 }
 
 .mini-telemetry-icon {
@@ -175,8 +180,8 @@
 /* Progress Bars */
 .res-progress-wrap {
     width: 100%;
-    height: 6px;
-    background-color: var(--bg-input);
+    height: 7px;
+    background-color: var(--border-subtle);
     border-radius: var(--radius-full);
     overflow: hidden;
     margin-top: 8px;
@@ -185,13 +190,13 @@
 .res-progress-fill {
     height: 100%;
     border-radius: var(--radius-full);
-    transition: width 0.4s ease;
+    transition: width 0.35s ease;
 }
 
-.res-progress-fill.cyan { background: var(--accent-cyan-gradient); }
-.res-progress-fill.purple { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
-.res-progress-fill.emerald { background: linear-gradient(90deg, #10b981, #06b6d4); }
-.res-progress-fill.amber { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.res-progress-fill.cyan { background: linear-gradient(90deg, #5D87FF, #49BEFF); }
+.res-progress-fill.purple { background: linear-gradient(90deg, #49BEFF, #7499FF); }
+.res-progress-fill.emerald { background: linear-gradient(90deg, #13DEB9, #2FE3C2); }
+.res-progress-fill.amber { background: linear-gradient(90deg, #FFAE1F, #FA896B); }
 
 /* Pulse animation */
 .pulse-live {

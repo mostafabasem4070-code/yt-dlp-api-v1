@@ -155,9 +155,9 @@ const TelemetryCharts = (function () {
         renderSplineChart(
             'cpuChartCanvas',
             cpuHistory,
-            '#06b6d4',
-            'rgba(6, 182, 212, 0.35)',
-            'rgba(6, 182, 212, 0.0)'
+            '#5D87FF',
+            'rgba(93, 135, 255, 0.32)',
+            'rgba(93, 135, 255, 0.0)'
         );
     }
 
@@ -165,9 +165,9 @@ const TelemetryCharts = (function () {
         renderSplineChart(
             'ramChartCanvas',
             ramHistory,
-            '#8b5cf6',
-            'rgba(139, 92, 246, 0.35)',
-            'rgba(139, 92, 246, 0.0)'
+            '#49BEFF',
+            'rgba(73, 190, 255, 0.32)',
+            'rgba(73, 190, 255, 0.0)'
         );
     }
 
