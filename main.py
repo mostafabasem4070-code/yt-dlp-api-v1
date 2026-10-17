@@ -28,7 +28,9 @@ from stream_service import (
     parse_range_header,
     stream_chunked_response,
     build_proxy_url,
-    DEFAULT_CHUNK_SIZE
+    DEFAULT_CHUNK_SIZE,
+    clear_stream_metadata_cache,
+    get_stream_metadata_cache_size
 )
 from cookie_manager import (
     read_active_cookies,
@@ -85,15 +87,21 @@ DASHBOARD_FILE = os.path.join(STATIC_DIR, "dashboard.html")
 setup_logging_capture()
 
 
+_updater_task_ref: Optional[asyncio.Task] = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """إدارة دورة حياة التطبيق وتشغيل مهام التحديث التلقائي الدوري في الخلفية."""
+    global _updater_task_ref
     logger.info("Initializing YouTube Extractor API & Monitoring Center...")
     # بدء مهمة التحديث التلقائي كل 12 ساعة
-    updater_task = asyncio.create_task(background_auto_updater(interval_seconds=43200))
+    _updater_task_ref = asyncio.create_task(background_auto_updater(interval_seconds=43200))
     yield
-    updater_task.cancel()
+    if _updater_task_ref and not _updater_task_ref.done():
+        _updater_task_ref.cancel()
     logger.info("Server shutting down.")
+
 
 
 app = FastAPI(
@@ -228,6 +236,10 @@ def root_endpoint(request: Request):
             "POST /api/monitor/probe": "إجراء فحص تشخيصي حي لكافة المكونات وشبكة يوتيوب",
             "GET /api/system/version": "تقرير إصدارات yt-dlp وحالة التحديث التلقائي",
             "POST /api/system/update": "تحديث فوري لـ yt-dlp إلى أحدث إصدار على PyPI",
+            "GET /api/system/cache": "إحصائيات ذاكرة الكاش المؤقتة TTLCache وحجم العناصر المخزنة",
+            "POST /api/system/cache/clear": "مسح ذاكرة الكاش المؤقتة TTLCache فورياً",
+            "POST /api/system/services/restart": "إعادة تشغيل وتهيئة كافة الخدمات الخلفية دون انقطاع الخادم",
+            "POST /api/system/server/restart": "إعادة تشغيل خادم السيرفر بالكامل (Server Process Restart)",
             "GET /api/cookies/status": "فحص حالة وصلاحية الكوكيز المسجلة",
             "POST /api/cookies/update": "تحديث الكوكيز بأي صيغة (JSON أو Netscape)",
             "POST /api/cookies/test": "فحص حي للكوكيز الحالية",
@@ -421,6 +433,168 @@ def trigger_system_update(request: Request, force: bool = Query(False, descripti
     """تحديث مكتبة yt-dlp فورياً إلى أحدث إصدار متاح عبر pip دون الحاجة لإعادة تشغيل الحاوية"""
     res = run_ytdlp_upgrade(force=force)
     return res
+
+
+# ===================== SYSTEM MAINTENANCE & CONTROL (CACHE & RESTARTS) =====================
+
+@app.get("/api/system/cache", tags=["System Maintenance & Control"])
+def get_cache_status():
+    """الحصول على إحصائيات ذاكرة الكاش المؤقتة (TTLCache) للروابط وكاش ترويسات البث."""
+    stream_cache_count = get_stream_metadata_cache_size()
+    return {
+        "status": "ok",
+        "ttl_cache": {
+            "current_size": len(extraction_cache),
+            "max_size": extraction_cache.maxsize,
+            "ttl_seconds": extraction_cache.ttl,
+            "ttl_hours": round(extraction_cache.ttl / 3600, 1),
+            "utilization_percent": round((len(extraction_cache) / extraction_cache.maxsize) * 100, 1) if extraction_cache.maxsize > 0 else 0
+        },
+        "stream_metadata_cache": {
+            "current_size": stream_cache_count
+        }
+    }
+
+
+@app.post("/api/system/cache/clear", tags=["System Maintenance & Control"])
+@app.delete("/api/system/cache", tags=["System Maintenance & Control"])
+def clear_ttl_cache_endpoint(
+    request: Request,
+    clear_streams: bool = Query(True, description="مسح كاش تدفقات البث أيضاً"),
+    admin: bool = Depends(require_admin)
+):
+    """
+    مسح ذاكرة الكاش المؤقتة (TTLCache) بالكامل:
+    - تفريغ كافة الروابط المستخرجة المخزنة مؤقتاً في الذاكرة.
+    - تفريغ كاش ترويسات وأحجام البث المباشر (Stream Metadata Cache).
+    - تحرير الذاكرة العشوائية فوراً.
+    """
+    import gc
+    old_extract_count = len(extraction_cache)
+    extraction_cache.clear()
+
+    old_stream_count = 0
+    if clear_streams:
+        old_stream_count = clear_stream_metadata_cache()
+
+    collected = gc.collect()
+    logger.info(f"TTLCache cleared: {old_extract_count} video entries, {old_stream_count} stream entries removed. Freed {collected} memory objects.")
+
+    return {
+        "success": True,
+        "message": f"تم مسح ذاكرة الـ TTLCache بنجاح ({old_extract_count} فيديو و {old_stream_count} ترويسة بث تم تفريغها).",
+        "cleared_extractions": old_extract_count,
+        "cleared_streams": old_stream_count,
+        "current_cache_size": len(extraction_cache)
+    }
+
+
+@app.post("/api/system/services/restart", tags=["System Maintenance & Control"])
+async def restart_services_endpoint(request: Request, admin: bool = Depends(require_admin)):
+    """
+    إعادة تشغيل الخدمات الخلفية بدون توقف خادم الـ API (Zero Downtime Restart):
+    - إعادة تشغيل مجدول التحديث التلقائي الدوري (Auto-updater worker).
+    - تنظيف وإغلاق أي متصفح Playwright/Chromium معلق أو غير نشط في الخلفية.
+    - مسح وتحديث كاش التحديات والذاكرة المؤقتة.
+    - استدعاء جامع القمامة (Garbage Collector) لتنظيف استهلاك الرام فوراً.
+    """
+    global _updater_task_ref
+    import gc
+    restarted = []
+
+    # 1. إعادة تشغيل مهمة التحديث التلقائي
+    try:
+        if _updater_task_ref and not _updater_task_ref.done():
+            _updater_task_ref.cancel()
+        _updater_task_ref = asyncio.create_task(background_auto_updater(interval_seconds=43200))
+        restarted.append("Auto-Updater Background Worker")
+    except Exception as e:
+        logger.warning(f"Error resetting updater task: {e}")
+
+    # 2. تنظيف وإغلاق أي متصفح معلق أو جلسة Playwright
+    try:
+        await cancel_auth_session()
+        restarted.append("Google Auth / Playwright Browser Cleaner")
+    except Exception as e:
+        logger.warning(f"Error resetting auth session: {e}")
+
+    # 3. تفريغ الكاش المؤقت وتحرير الرام
+    try:
+        extraction_cache.clear()
+        clear_stream_metadata_cache()
+        restarted.append("TTLCache & Stream Metadata Memory")
+    except Exception as e:
+        logger.warning(f"Error clearing cache in restart: {e}")
+
+    # 4. تشغيل Garbage Collection لتحرير أي كائنات معلقة
+    collected = gc.collect()
+    restarted.append(f"Garbage Collector (freed {collected} objects)")
+
+    logger.info("Internal services successfully restarted and memory reclaimed.")
+    return {
+        "success": True,
+        "message": "تمت إعادة تشغيل وتهيئة كافة الخدمات الخلفية وتحرير الذاكرة بنجاح دون انقطاع الخادم.",
+        "restarted_services": restarted,
+        "active_cache_size": len(extraction_cache)
+    }
+
+
+def _get_server_restart_command():
+    """تحديد أمر إعادة تشغيل السيرفر بدقة عبر المنصات."""
+    arg0 = sys.argv[0] if sys.argv else ""
+    if arg0.endswith(".py"):
+        return [sys.executable] + sys.argv
+    elif arg0.endswith(".exe"):
+        return sys.argv
+    else:
+        return [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(os.getenv("PORT", 8000))]
+
+
+@app.post("/api/system/server/restart", tags=["System Maintenance & Control"])
+async def restart_server_endpoint(request: Request, admin: bool = Depends(require_admin)):
+    """
+    إعادة تشغيل كاملة لخادم السيرفر (Server Process Restart):
+    - يتم إرسال الاستجابة للعميل أولاً ثم إعادة تشغيل عملية الخادم بعد 1.2 ثانية.
+    - يدعم بيئات Docker و Railway والنظام المحلي.
+    """
+    async def _perform_server_restart():
+        await asyncio.sleep(1.2)
+        logger.warning(">>> PERFORMING GRACEFUL SERVER RESTART NOW <<<")
+        try:
+            await cancel_auth_session()
+        except Exception:
+            pass
+
+        # محاولة لمس ملف main.py لإشعار uvicorn reload إذا كان فعالاً
+        try:
+            os.utime(__file__, None)
+        except Exception:
+            pass
+
+        cmd = _get_server_restart_command()
+        try:
+            if sys.platform == "win32":
+                import subprocess
+                subprocess.Popen(cmd, creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+                os._exit(0)
+            else:
+                args = cmd
+                try:
+                    os.execv(args[0], args)
+                except Exception:
+                    os._exit(0)
+        except Exception as e:
+            logger.error(f"Restart fallback exit: {e}")
+            os._exit(0)
+
+    # تشغيل مهمة إعادة التشغيل في الخلفية لضمان وصول الرد للمتصفح أولاً
+    asyncio.create_task(_perform_server_restart())
+
+    return {
+        "success": True,
+        "message": "جاري إعادة تشغيل السيرفر بالكامل الآن... سيتم استعادة الاتصال تلقائياً خلال لحظات.",
+        "countdown_seconds": 3
+    }
 
 
 # ===================== COOKIES MANAGEMENT ENDPOINTS =====================

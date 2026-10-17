@@ -198,3 +198,16 @@ def build_proxy_url(
         return f"{clean_base}/?{query}"
 
     return f"{clean_base}/api/stream?{query}"
+
+
+def clear_stream_metadata_cache() -> int:
+    """مسح كاش الميتاداتا للبث المباشر وإرجاع عدد العناصر التي تم مسحها."""
+    count = len(_METADATA_CACHE)
+    _METADATA_CACHE.clear()
+    return count
+
+
+def get_stream_metadata_cache_size() -> int:
+    """إرجاع عدد العناصر المخزنة حالياً في كاش الميتاداتا للبث."""
+    return len(_METADATA_CACHE)
+

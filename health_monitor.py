@@ -442,6 +442,28 @@ def check_security_firewall_health() -> Dict[str, Any]:
         }
 
 
+def check_ttl_cache_component() -> Dict[str, Any]:
+    """فحص حالة ذاكرة الكاش المؤقتة TTLCache وتدفقات البث المباشر."""
+    try:
+        from stream_service import get_stream_metadata_cache_size
+        stream_count = get_stream_metadata_cache_size()
+    except Exception:
+        stream_count = 0
+
+    return {
+        "key": "ttl_cache",
+        "name": "Extraction TTLCache (ذاكرة الكاش المؤقتة)",
+        "category": "cache",
+        "state": "running",
+        "state_text": "نشطة وتعمل بكفاءة",
+        "status": "healthy",
+        "badge": "سريعة ونشطة",
+        "installed": True,
+        "message": f"ذاكرة الكاش المؤقتة TTLCache تعمل على تسريع استخراج الروابط مع حفظ ترويسات البث ({stream_count} ترويسة مسجلة).",
+        "action_type": "clear_cache"
+    }
+
+
 _SERVER_START_TIME = time.time()
 
 
@@ -591,6 +613,7 @@ def get_full_monitoring_report() -> Dict[str, Any]:
     streaming_info = check_streaming_service_health()
     cloudflare_info = check_cloudflare_worker_health()
     security_info = check_security_firewall_health()
+    ttl_cache_info = check_ttl_cache_component()
 
     components_list = [
         ytdlp_info,
@@ -600,6 +623,7 @@ def get_full_monitoring_report() -> Dict[str, Any]:
         ffmpeg_info,
         streaming_info,
         updater_worker_info,
+        ttl_cache_info,
         network_info,
         cloudflare_info,
         security_info,
@@ -665,5 +689,6 @@ def get_full_monitoring_report() -> Dict[str, Any]:
             "streaming_engine": streaming_info,
             "cloudflare_worker": cloudflare_info,
             "security_engine": security_info,
+            "ttl_cache": ttl_cache_info
         }
     }

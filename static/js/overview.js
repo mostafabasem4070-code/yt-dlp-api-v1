@@ -126,6 +126,9 @@ async function loadOverview() {
         // 7. Render Components Health Matrix
         renderComponentsGrid(data.components_list || []);
 
+        // 8. Update TTLCache Status Badge & Info
+        await loadCacheStatus();
+
     } catch (err) {
         console.error('Failed to load overview:', err);
     }
@@ -210,7 +213,187 @@ async function handleTriggerUpdate() {
     }
 }
 
+/* ==========================================================================
+   TTLCACHE & SERVER MAINTENANCE OPERATIONS
+   ========================================================================== */
+
+async function loadCacheStatus() {
+    try {
+        const res = await apiFetch('/api/system/cache');
+        if (!res.ok) return;
+        const data = await res.json();
+        const ttl = data.ttl_cache || {};
+        const count = ttl.current_size !== undefined ? ttl.current_size : 0;
+        const max = ttl.max_size || 500;
+        const hours = ttl.ttl_hours || 1;
+
+        const badge = document.getElementById('ttlCacheStatusBadge');
+        if (badge) {
+            badge.textContent = `الكاش: ${count}/${max} عنصر`;
+            if (count > 0) {
+                badge.style.background = 'var(--warning-light)';
+                badge.style.color = 'var(--warning)';
+            } else {
+                badge.style.background = 'var(--bg-hover)';
+                badge.style.color = 'var(--text-muted)';
+            }
+        }
+
+        const desc = document.getElementById('ttlCacheDescText');
+        if (desc) {
+            desc.textContent = `الكاش الحالي: ${count} فيديو محفوظ (${hours} ساعة)`;
+        }
+    } catch (err) {
+        console.error('Failed to load cache status:', err);
+    }
+}
+
+async function handleClearTtlCache() {
+    const btn = document.getElementById('btnClearTtlCache');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+            <span>جاري المسح...</span>
+        `;
+    }
+
+    try {
+        const res = await apiFetch('/api/system/cache/clear', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(data.message || 'تم تفريغ ذاكرة الـ TTLCache بنجاح!');
+            await loadCacheStatus();
+            if (window.loadOverview) loadOverview();
+        } else {
+            showToast(data.detail || 'فشل مسح الـ TTLCache.', 'error');
+        }
+    } catch (e) {
+        showToast('تعذر الاتصال بالسيرفر أثناء مسح الكاش.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handleRestartServices() {
+    const btn = document.getElementById('btnRestartServices');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+            <span>جاري إعادة التشغيل...</span>
+        `;
+    }
+
+    try {
+        const res = await apiFetch('/api/system/services/restart', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(data.message || 'تمت إعادة تشغيل كافة الخدمات الخلفية بنجاح!');
+            await loadCacheStatus();
+            if (window.loadOverview) loadOverview();
+            if (window.fetchServerResources) fetchServerResources(false);
+        } else {
+            showToast(data.detail || 'فشل إعادة تشغيل الخدمات.', 'error');
+        }
+    } catch (e) {
+        showToast('تعذر الاتصال بالسيرفر لإعادة تشغيل الخدمات.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+function handleRestartServer() {
+    const modal = document.getElementById('modalConfirmServerRestart');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeServerRestartModal() {
+    const modal = document.getElementById('modalConfirmServerRestart');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function confirmExecuteServerRestart() {
+    closeServerRestartModal();
+    const overlay = document.getElementById('serverRebootingOverlay');
+    const pollStatus = document.getElementById('rebootPollStatus');
+    if (overlay) overlay.style.display = 'flex';
+
+    try {
+        await apiFetch('/api/system/server/restart', { method: 'POST' });
+    } catch (e) {
+        // Expected if server process terminates immediately
+    }
+
+    let attempts = 0;
+    const maxAttempts = 30;
+    if (pollStatus) {
+        pollStatus.textContent = 'جاري انتظار استجابة السيرفر...';
+        pollStatus.style.color = 'var(--primary)';
+    }
+
+    // Wait 1.5 seconds before starting polling
+    setTimeout(() => {
+        const pollInterval = setInterval(async () => {
+            attempts++;
+            if (pollStatus) {
+                pollStatus.textContent = `فحص الاتصال بالسيرفر (محاولة ${attempts}/${maxAttempts})...`;
+            }
+
+            try {
+                const res = await fetch('/api/auth/status', { cache: 'no-store' });
+                if (res.ok) {
+                    clearInterval(pollInterval);
+                    if (pollStatus) {
+                        pollStatus.textContent = 'تم استعادة الاتصال بالسيرفر بنجاح! 🟢';
+                        pollStatus.style.color = 'var(--success)';
+                    }
+                    setTimeout(() => {
+                        if (overlay) overlay.style.display = 'none';
+                        showToast('تمت إعادة تشغيل السيرفر بنجاح وعاد للعمل بكفاءة!');
+                        if (window.loadOverview) loadOverview();
+                        if (window.fetchServerResources) fetchServerResources(false);
+                    }, 800);
+                }
+            } catch (err) {
+                // Server is still rebooting, keep polling
+            }
+
+            if (attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                if (pollStatus) {
+                    pollStatus.textContent = 'استغرق السيرفر وقتاً أطول من المعتاد. يرجى تحديث الصفحة يدوياً.';
+                    pollStatus.style.color = 'var(--warning)';
+                }
+                setTimeout(() => {
+                    if (overlay) overlay.style.display = 'none';
+                    showToast('يرجى تحديث الصفحة للتحقق من حالة السيرفر.', 'warning');
+                }, 2500);
+            }
+        }, 1200);
+    }, 1500);
+}
+
 window.loadOverview = loadOverview;
 window.renderComponentsGrid = renderComponentsGrid;
 window.runDiagnosticProbe = runDiagnosticProbe;
 window.handleTriggerUpdate = handleTriggerUpdate;
+window.loadCacheStatus = loadCacheStatus;
+window.handleClearTtlCache = handleClearTtlCache;
+window.handleRestartServices = handleRestartServices;
+window.handleRestartServer = handleRestartServer;
+window.closeServerRestartModal = closeServerRestartModal;
+window.confirmExecuteServerRestart = confirmExecuteServerRestart;
+
