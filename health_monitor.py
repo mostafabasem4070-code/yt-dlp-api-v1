@@ -595,6 +595,47 @@ def check_system_resources() -> Dict[str, Any]:
     }
 
 
+def check_extraction_stats_component() -> Dict[str, Any]:
+    """فحص محرك إحصائيات الاستخراج وسجل العمليات الحية."""
+    try:
+        from stats_manager import get_extraction_summary_metrics
+        res = get_extraction_summary_metrics(top_limit=1, recent_limit=1)
+        kpis = res.get("kpis", {})
+        total = kpis.get("total_extractions", 0)
+        today = kpis.get("today_extractions", 0)
+        rate = kpis.get("success_rate", 100.0)
+        return {
+            "key": "extraction_stats",
+            "name": "محرك إحصائيات الاستخراج (Extraction Analytics)",
+            "category": "service",
+            "state": "running",
+            "state_text": f"نشط ويحسب ({total} طلب كلي | {today} اليوم)",
+            "installed": True,
+            "status": "healthy",
+            "version": "SQLite Engine v2.0",
+            "path": None,
+            "message": f"تم تسجيل {total} عملية استخراج بنجاح ({today} اليوم) مع رصد أعلى الروابط ومعدلات النجاح بنسبة {rate}%.",
+            "badge": f"{total} طلب",
+            "action_type": None,
+            "kpis": kpis
+        }
+    except Exception as e:
+        return {
+            "key": "extraction_stats",
+            "name": "محرك إحصائيات الاستخراج (Extraction Analytics)",
+            "category": "service",
+            "state": "stopped",
+            "state_text": "غير نشط",
+            "installed": False,
+            "status": "warning",
+            "version": None,
+            "path": None,
+            "message": f"خطأ في قراءة قاعدة بيانات الإحصائيات: {e}",
+            "badge": "تنبيه ⚠️",
+            "action_type": None
+        }
+
+
 def get_full_monitoring_report() -> Dict[str, Any]:
     """
     إنشاء تقرير شامل وموحد لمركز مراقبة كافة مكونات ومحركات النظام وموارده:
@@ -602,7 +643,7 @@ def get_full_monitoring_report() -> Dict[str, Any]:
     """
     resources = check_system_resources()
 
-    # فحص كافة مكونات النظام الـ 10
+    # فحص كافة مكونات النظام
     cookies_info = check_cookies_component()
     ytdlp_info = check_ytdlp_health()
     node_info = check_node_health()
@@ -614,10 +655,12 @@ def get_full_monitoring_report() -> Dict[str, Any]:
     cloudflare_info = check_cloudflare_worker_health()
     security_info = check_security_firewall_health()
     ttl_cache_info = check_ttl_cache_component()
+    extraction_stats_info = check_extraction_stats_component()
 
     components_list = [
         ytdlp_info,
         cookies_info,
+        extraction_stats_info,
         node_info,
         deno_info,
         ffmpeg_info,
@@ -689,6 +732,7 @@ def get_full_monitoring_report() -> Dict[str, Any]:
             "streaming_engine": streaming_info,
             "cloudflare_worker": cloudflare_info,
             "security_engine": security_info,
-            "ttl_cache": ttl_cache_info
+            "ttl_cache": ttl_cache_info,
+            "extraction_stats": extraction_stats_info
         }
     }

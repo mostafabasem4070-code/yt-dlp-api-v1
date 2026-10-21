@@ -17,9 +17,12 @@ async function fetchServerResources(isManual = false) {
 
         updateResourcesUI(data);
 
-        // تغذية محرك الرسوم البيانية الحية (Charts)
+        // تغذية محرك الرسوم البيانية الحية (Charts) بالقراءات الحقيقية
+        const cpuPct = data.cpu ? data.cpu.percent : (data.cpu_percent || 0);
+        const ramPct = data.ram ? data.ram.percent : (data.ram_percent || 0);
+
         if (window.TelemetryCharts) {
-            window.TelemetryCharts.pushData(data.cpu_percent || 0, data.ram_percent || 0);
+            window.TelemetryCharts.pushData(cpuPct, ramPct);
         }
 
         if (isManual) {

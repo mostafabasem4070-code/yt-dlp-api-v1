@@ -75,6 +75,12 @@ from google_auth_service import (
     browser_navigate_to,
     browser_manual_extract
 )
+import time
+from stats_manager import (
+    record_extraction,
+    get_extraction_summary_metrics,
+    clear_extraction_stats
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -247,6 +253,8 @@ def root_endpoint(request: Request):
             "POST /api/extract": "استخراج الروابط المباشرة (JSON body)",
             "GET /api/extract": "استخراج الروابط المباشرة (Query param)",
             "GET /api/stream": "بث الفيديو والصوت مع تقطيع 10MB لتجاوز خنق السرعة ودعم Range والـ Seeking السلس",
+            "GET /api/stats/summary": "إحصائيات عمليات الاستخراج وأعلى الروابط طلباً والنشاط اللحظي ومعدلات النجاح",
+            "POST /api/stats/clear": "تصفير ومسح كافة إحصائيات وسجلات الاستخراج",
             "GET /api/logs": "سجل العمليات والأخطاء الحية",
             "GET /api/debug": "فحص بيئة السيرفر والأدوات"
         }
@@ -872,9 +880,22 @@ def extract_canonical_cache_key(url: str, proxy_streams: bool) -> str:
 
 
 async def handle_extraction(url: str, request: Optional[Request] = None, proxy_streams: bool = True):
+    start_time = time.perf_counter()
     url = url.strip()
     if not url:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="رابط الفيديو مطلوب.")
+
+    # استخراج معلومات العميل والدومين الطالب للإحصائيات
+    client_ip = ""
+    referer = ""
+    if request:
+        client_ip = (
+            request.headers.get("cf-connecting-ip")
+            or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or request.headers.get("x-real-ip")
+            or (request.client.host if request.client else "")
+        )
+        referer = request.headers.get("origin") or request.headers.get("referer") or request.headers.get("host") or ""
 
     # التحقق من صلاحية الدومين ومفتاح الـ API
     if request:
@@ -885,6 +906,19 @@ async def handle_extraction(url: str, request: Optional[Request] = None, proxy_s
         logger.info(f"Returning cached extraction for {url} [Cache Hit: {cache_key}]")
         cached_data = dict(extraction_cache[cache_key])
         cached_data["cached"] = True
+        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+        try:
+            record_extraction(
+                url=url,
+                video_info=cached_data.get("video_info"),
+                status="success",
+                is_cached=True,
+                response_time_ms=elapsed_ms,
+                client_ip=client_ip,
+                referer=referer
+            )
+        except Exception as e:
+            logger.warning(f"Failed to record cache stats: {e}")
         return cached_data
 
     try:
@@ -906,10 +940,38 @@ async def handle_extraction(url: str, request: Optional[Request] = None, proxy_s
 
         data["cached"] = False
         extraction_cache[cache_key] = data
+
+        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+        try:
+            record_extraction(
+                url=url,
+                video_info=data.get("video_info"),
+                status="success",
+                is_cached=False,
+                response_time_ms=elapsed_ms,
+                client_ip=client_ip,
+                referer=referer
+            )
+        except Exception as e:
+            logger.warning(f"Failed to record success stats: {e}")
+
         return data
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Extraction failed: {error_msg}")
+        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+        try:
+            record_extraction(
+                url=url,
+                status="failed",
+                is_cached=False,
+                response_time_ms=elapsed_ms,
+                client_ip=client_ip,
+                referer=referer,
+                error_message=error_msg
+            )
+        except Exception as se:
+            logger.warning(f"Failed to record failure stats: {se}")
 
         detail_msg = f"فشل استخراج الروابط: {error_msg} (يمكنك فحص مركز المراقبة عبر /dashboard أو مراجعة /api/logs)"
         if "The page needs to be reloaded" in error_msg:
@@ -940,6 +1002,30 @@ async def extract_get(
 ):
     """استخراج الروابط المباشرة المؤقتة لجميع الجودات عبر طلب GET."""
     return await handle_extraction(url, request=request, proxy_streams=proxy_streams)
+
+
+# ===================== EXTRACTION STATISTICS & ANALYTICS ENDPOINTS =====================
+
+@app.get("/api/stats/summary", tags=["Extraction Statistics"])
+def get_stats_summary_endpoint(top_limit: int = 15, recent_limit: int = 25):
+    """
+    استرجاع إحصائيات عمليات استخراج الروابط المباشرة:
+    - إجمالي عدد مرات الاستخراج (Total Extractions Count).
+    - عمليات اليوم ومعدلات النجاح والكاش.
+    - جدول أكثر الروابط استخراجاً وطلباً مع العناوين والصور.
+    - سجل أحدث العمليات اللحظية مع دومين العميل وزمن الاستجابة.
+    - اتجاهات الأيام والمنصات الأكثر طلباً.
+    """
+    return get_extraction_summary_metrics(top_limit=top_limit, recent_limit=recent_limit)
+
+
+@app.post("/api/stats/clear", tags=["Extraction Statistics"])
+def clear_stats_endpoint(request: Request, admin: bool = Depends(require_admin)):
+    """تصفير ومسح كافة إحصائيات وسجلات استخراج الروابط."""
+    success = clear_extraction_stats()
+    if success:
+        return {"success": True, "message": "تم تصفير كافة إحصائيات وسجلات الاستخراج بنجاح."}
+    raise HTTPException(status_code=500, detail="فشل مسح إحصائيات الاستخراج.")
 
 
 @app.options("/api/stream", tags=["Streaming Proxy"])
