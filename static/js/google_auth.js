@@ -303,6 +303,7 @@ function handleLoginSuccessful() {
         const modal = document.getElementById('remoteBrowserModal');
         if (modal) modal.style.display = 'none';
         if (window.loadCookieStatus) loadCookieStatus();
+        if (window.loadOverview) loadOverview();
         loadGoogleAuthStatus();
     }, 1800);
 }

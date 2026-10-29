@@ -226,8 +226,8 @@ def check_cookies_component() -> Dict[str, Any]:
     days = analysis.get("days_until_expiry", 999)
     pool_count = len(pool_summary)
 
-    if status == "valid" and analysis.get("has_auth"):
-        if days <= 3:
+    if (status in ("valid", "partial") and analysis.get("has_auth")) or len(analysis.get("auth_cookies_found", [])) >= 2:
+        if days <= 3 and analysis.get("earliest_expiry_timestamp", 0) > 0:
             comp_status = "warning"
             state = "needs_update"
             state_text = f"تحتاج لتجديد (تنتهي خلال {days} أيام)"

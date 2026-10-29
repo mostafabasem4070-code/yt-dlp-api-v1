@@ -59,6 +59,52 @@ EPHEMERAL_COOKIES = {
 }
 
 
+def _ensure_youtube_domain_cookies(cookies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    ضمان نسخ كوكيز المصادقة والجلسة الأساسية الموجودة على .google.com إلى نطاق .youtube.com
+    إذا لم تكن موجودة عليه، لأن yt-dlp يتطلب وجودها تحت .youtube.com لتوليد ترويسة SAPISIDHASH.
+    """
+    if not cookies:
+        return cookies
+
+    yt_names = {
+        c.get("name", "")
+        for c in cookies
+        if "youtube.com" in str(c.get("domain", "")).lower() and c.get("value")
+    }
+    shared_auth_names = set(CRITICAL_AUTH_COOKIES) | set(IMPORTANT_SESSION_COOKIES) | {"SOCS"}
+    mirrored = set()
+    extra_cookies = []
+
+    for c in cookies:
+        name = c.get("name", "")
+        domain = str(c.get("domain", "")).lower()
+        val = c.get("value", "")
+        if (
+            name in shared_auth_names
+            and name not in yt_names
+            and name not in mirrored
+            and "google." in domain
+            and val
+        ):
+            mirrored.add(name)
+            extra_cookies.append({
+                "domain": ".youtube.com",
+                "flag": True,
+                "path": "/",
+                "secure": c.get("secure", True),
+                "expiration": c.get("expiration", 0),
+                "name": name,
+                "value": val,
+                "http_only": c.get("http_only", False),
+            })
+
+    if extra_cookies:
+        cookies = list(cookies) + extra_cookies
+
+    return cookies
+
+
 def _file_has_cookie_entries(path: Optional[str]) -> bool:
     """التحقق الفعلي من أن ملف الكوكيز يحتوي على أسطر كوكيز حقيقية وليس مجرد ترويسات تعليق فارغة."""
     if not path or not os.path.exists(path):
@@ -146,7 +192,7 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
                         "http_only": http_only
                     })
                 if cookies:
-                    return cookies, "json"
+                    return _ensure_youtube_domain_cookies(cookies), "json"
         except Exception as e:
             logger.debug(f"JSON parse attempt failed: {e}")
 
@@ -195,7 +241,7 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
             })
 
     if netscape_cookies:
-        return netscape_cookies, "netscape"
+        return _ensure_youtube_domain_cookies(netscape_cookies), "netscape"
 
     # 4. فحص صيغة HTTP Header (Cookie: name=val; name2=val2)
     header_text = text
@@ -402,8 +448,16 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         urgency_level = "guest"
 
     has_login_info = "LOGIN_INFO" in names_present
-    has_sid = any(k in names_present for k in ["__Secure-3PSID", "__Secure-1PSID", "SID", "SSID", "HSID", "SAPISID", "APISID", "__Secure-3PSIDTS", "__Secure-1PSIDTS"])
-    has_any_auth = has_login_info or has_sid or len(auth_found) > 0
+    has_sid = any(k in names_present for k in [
+        "__Secure-3PSID", "__Secure-1PSID", "SID", "SSID", "HSID",
+        "SAPISID", "APISID", "__Secure-3PSIDTS", "__Secure-1PSIDTS",
+        "__Secure-3PAPISID", "__Secure-1PAPISID"
+    ])
+    has_strong_auth = bool(has_login_info or (has_sid and len(auth_found) >= 2))
+    has_any_auth = has_strong_auth or len(auth_found) > 0
+
+    if min_target_exp == 0 and has_strong_auth:
+        urgency_level = "good"
 
     if is_expired:
         status_code = "expired"
@@ -411,7 +465,7 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
     elif not has_any_auth:
         status_code = "guest_only"
         status_msg = f"الكوكيز تعمل في وضع الزائر (بدون تسجيل دخول حساب). صالحة لمدة {expiry_human}."
-    elif len(auth_found) >= 2 or has_login_info or has_sid:
+    elif has_strong_auth or len(auth_found) >= 2:
         status_code = "valid"
         status_msg = f"الكوكيز صالحة ومسجلة الدخول بنجاح! تنتهي جلسة الحساب بعد {expiry_countdown} ({earliest_readable})."
     else:
@@ -467,7 +521,7 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         "status": status_code,
         "message": status_msg,
         "total_cookies": len(cookies),
-        "has_auth": has_login_info and has_sid,
+        "has_auth": has_strong_auth,
         "auth_cookies_found": auth_found,
         "missing_critical_cookies": missing_crit,
         "earliest_expiry_readable": earliest_readable,
@@ -529,12 +583,17 @@ def add_or_update_pool_entry(
     fp = _compute_cookie_fingerprint(cookies)
     health = analyze_cookies_health(cookies)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    is_authed = health.get("has_auth", False)
+
+    # إذا كانت الجلسة الجديدة مسجلة الدخول فعلياً، نزيل أي جلسات زائر غير مسجلة قديمة من المسبح
+    if is_authed:
+        pool = [item for item in pool if item.get("has_auth", False) or item.get("fingerprint") == fp]
 
     existing = next((item for item in pool if item.get("fingerprint") == fp), None)
     if existing:
         existing["netscape_content"] = netscape_content
         existing["cookies_count"] = len(cookies)
-        existing["has_auth"] = health.get("has_auth", False)
+        existing["has_auth"] = is_authed
         existing["updated_at"] = now_str
         existing["fail_count"] = 0
         existing["enabled"] = True
@@ -549,7 +608,7 @@ def add_or_update_pool_entry(
             "label": entry_label,
             "fingerprint": fp,
             "cookies_count": len(cookies),
-            "has_auth": health.get("has_auth", False),
+            "has_auth": is_authed,
             "added_at": now_str,
             "updated_at": now_str,
             "uses_count": 0,
@@ -592,12 +651,25 @@ def get_cookie_pool_summary() -> List[Dict[str, Any]]:
 
 
 def remove_cookie_from_pool(cookie_id: str) -> bool:
-    """حذف حساب كوكيز محدد من المسبح."""
+    """حذف حساب كوكيز محدد من المسبح ومزامنة ملف الكوكيز الأساسي."""
     pool = _load_cookie_pool_raw()
     new_pool = [item for item in pool if item.get("id") != cookie_id]
     if len(new_pool) == len(pool):
         return False
     _save_cookie_pool_raw(new_pool)
+
+    # مزامنة ملف الكوكيز الأساسي على القرص مع حالة المسبح بعد الحذف
+    if not new_pool:
+        clear_cookies_file(clear_pool=False)
+    else:
+        active_item = next((item for item in new_pool if item.get("enabled", True) and item.get("netscape_content")), new_pool[0])
+        if active_item and active_item.get("netscape_content"):
+            target_path = COOKIES_FILE or DEFAULT_COOKIES_FILE
+            try:
+                with open(target_path, "w", encoding="utf-8") as f:
+                    f.write(active_item["netscape_content"])
+            except Exception:
+                pass
     return True
 
 
@@ -624,7 +696,8 @@ def get_rotated_cookie_content() -> Tuple[Optional[str], Optional[str]]:
     """
     global _POOL_RR_INDEX
     pool = _load_cookie_pool_raw()
-    healthy_entries = []
+    authed_entries = []
+    fallback_entries = []
     for item in pool:
         if not item.get("enabled", True):
             continue
@@ -636,8 +709,15 @@ def get_rotated_cookie_content() -> Tuple[Optional[str], Optional[str]]:
         cookies, _ = parse_raw_cookie_input(raw_ns)
         health = analyze_cookies_health(cookies)
         if not health.get("is_expired", False) and len(cookies) > 0:
-            healthy_entries.append(item)
+            # إعادة تحويل الكوكيز بعد ضمان نسخ .youtube.com
+            enriched_ns = convert_cookies_to_netscape(cookies)
+            item_copy = dict(item, netscape_content=enriched_ns)
+            if health.get("has_auth", False):
+                authed_entries.append(item_copy)
+            else:
+                fallback_entries.append(item_copy)
 
+    healthy_entries = authed_entries if authed_entries else fallback_entries
     if healthy_entries:
         idx = _POOL_RR_INDEX % len(healthy_entries)
         _POOL_RR_INDEX = (_POOL_RR_INDEX + 1) % max(1, len(healthy_entries))
@@ -649,7 +729,11 @@ def get_rotated_cookie_content() -> Tuple[Optional[str], Optional[str]]:
     if cookie_path:
         try:
             with open(cookie_path, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read(), None
+                raw_disk = f.read()
+            cookies, _ = parse_raw_cookie_input(raw_disk)
+            health = analyze_cookies_health(cookies)
+            if not health.get("is_expired", False) and health.get("has_auth", False):
+                return convert_cookies_to_netscape(cookies), None
         except Exception:
             pass
     return None, None

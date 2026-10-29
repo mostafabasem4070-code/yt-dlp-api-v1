@@ -215,12 +215,17 @@ def _run_yt_dlp(url: str, use_cookies: bool = True, custom_clients: Optional[Lis
 
     po_token = sec_cfg.get("po_token")
     visitor_data = sec_cfg.get("visitor_data")
-    if po_token and visitor_data:
+    # لا نحقن visitor_data الخاص بالزائر عند استخدام كوكيز حساب مسجل حتى لا يتعارض مع جلسة الحساب (DATASYNC_ID)
+    if not will_use_cookies:
+        if po_token and visitor_data:
+            extractor_args_youtube['po_token'] = [f"web+{po_token}", f"mweb+{po_token}"]
+            extractor_args_youtube['visitor_data'] = [visitor_data]
+            logger.info("Injected PO Token and Visitor Data (Guest mode).")
+        elif visitor_data:
+            extractor_args_youtube['visitor_data'] = [visitor_data]
+    elif po_token:
         extractor_args_youtube['po_token'] = [f"web+{po_token}", f"mweb+{po_token}"]
-        extractor_args_youtube['visitor_data'] = [visitor_data]
-        logger.info("Injected PO Token and Visitor Data.")
-    elif visitor_data:
-        extractor_args_youtube['visitor_data'] = [visitor_data]
+        logger.info("Injected PO Token with active cookies.")
 
     if extractor_args_youtube:
         ydl_opts['extractor_args'] = {
@@ -286,12 +291,25 @@ def extract_youtube_info(url: str) -> Dict[str, Any]:
     # مرحلة 1: المحاولة باستخدام الكوكيز النشطة إذا كانت متوفرة
     if has_cookies:
         try:
-            logger.info(f"Strategy 1 (Cookies Standard): Full extraction with cookies for URL: {url}")
+            logger.info(f"Strategy 1A (Cookies Standard): Full extraction with cookies for URL: {url}")
             info = _run_yt_dlp(url, use_cookies=True)
             strategy_used = "cookies_standard"
         except Exception as e:
             last_error = e
-            logger.warning(f"Strategy 1 (Cookies) failed: {e}")
+            logger.warning(f"Strategy 1A (Cookies Standard) failed: {e}")
+
+        if not info:
+            try:
+                logger.info(f"Strategy 1B (Cookies Multi-Client): Retrying with cookies + tv_downgraded/web_creator/mweb for URL: {url}")
+                info = _run_yt_dlp(
+                    url,
+                    use_cookies=True,
+                    custom_clients=['tv_downgraded', 'web_creator', 'mweb', 'web_safari']
+                )
+                strategy_used = "cookies_multi_client"
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Strategy 1B (Cookies Multi-Client) failed: {e}")
 
     # مرحلة 2: تجربة مشغل tv_downgraded و web_creator بدون كوكيز
     if not info:

@@ -834,8 +834,7 @@ async def google_auth_start(payload: GoogleLoginRequest, request: Request, admin
     """
     result = await start_google_login_session(
         timeout_minutes=payload.timeout_minutes,
-        headless=payload.headless,
-        target_url="https://accounts.google.com/ServiceLogin?service=youtube&hl=ar"
+        headless=payload.headless
     )
     return result
 
