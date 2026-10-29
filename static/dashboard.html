@@ -55,15 +55,6 @@
                     </div>
                 </button>
 
-                <button class="nav-item" onclick="switchNavTab('tab-analytics', 'إحصائيات عمليات الاستخراج (Extraction Analytics)', this)">
-                    <div class="nav-item-content">
-                        <!-- BarChart2Icon -->
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                        <span>إحصائيات الاستخراج</span>
-                    </div>
-                    <span class="nav-badge" id="sideExtractionsBadge" style="background:var(--primary-light); color:var(--primary);">0 طلب</span>
-                </button>
-
                 <button class="nav-item" onclick="switchNavTab('tab-resources', 'مراقبة موارد السيرفر الحية (CPU & RAM Charts)', this)">
                     <div class="nav-item-content">
                         <!-- ChartAreaIcon -->
@@ -255,71 +246,6 @@
                                 <div id="statDomainsCount" class="stat-value" style="color: var(--warning);">* (مفتوح للجميع)</div>
                                 <div id="statDomainsSubtext" class="stat-subtext">جدار حماية الطلبات</div>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Extraction Analytics Quick Highlights Card -->
-                    <div class="card" style="margin-bottom: 24px; border-color: rgba(93, 135, 255, 0.35); background: linear-gradient(135deg, var(--bg-card) 0%, rgba(93, 135, 255, 0.04) 100%);">
-                        <div class="card-header">
-                            <div class="card-header-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                                <span>إحصائيات عمليات استخراج الروابط (Live Extraction Analytics)</span>
-                            </div>
-                            <button class="btn-action primary" onclick="switchNavTab('tab-analytics', 'إحصائيات عمليات الاستخراج (Extraction Analytics)')">
-                                <span>مركز الإحصائيات الكامل والتقارير ←</span>
-                            </button>
-                        </div>
-
-                        <div class="mini-telemetry-grid">
-                            <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:var(--primary-light); color:var(--primary);">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                                </div>
-                                <div class="mini-telemetry-info">
-                                    <span class="mini-telemetry-label">إجمالي عمليات الاستخراج</span>
-                                    <span class="mini-telemetry-val" id="overviewStatExtractionsTotal" style="color:var(--primary);">0</span>
-                                </div>
-                            </div>
-
-                            <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:var(--secondary-light); color:var(--secondary);">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                                </div>
-                                <div class="mini-telemetry-info">
-                                    <span class="mini-telemetry-label">استخراجات اليوم</span>
-                                    <span class="mini-telemetry-val" id="overviewStatExtractionsToday" style="color:var(--secondary);">+0 اليوم</span>
-                                </div>
-                            </div>
-
-                            <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:var(--success-light); color:var(--success);">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                </div>
-                                <div class="mini-telemetry-info">
-                                    <span class="mini-telemetry-label">نسبة نجاح الاستخراج</span>
-                                    <span class="mini-telemetry-val" id="overviewStatExtractionsSuccess" style="color:var(--success);">100%</span>
-                                </div>
-                            </div>
-
-                            <div class="mini-telemetry-card">
-                                <div class="mini-telemetry-icon" style="background:var(--warning-light); color:var(--warning);">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                                </div>
-                                <div class="mini-telemetry-info">
-                                    <span class="mini-telemetry-label">توفير وسرعة الكاش</span>
-                                    <span class="mini-telemetry-val" id="overviewStatExtractionsCache" style="color:var(--warning);">0 كاش</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; font-size:0.86rem;">
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <span style="color:var(--text-muted);">أكثر رابط طلباً:</span>
-                                <strong id="overviewStatTopVideoTitle" style="color:var(--text-main); max-width:400px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">لا توجد بيانات بعد</strong>
-                            </div>
-                            <a href="javascript:void(0)" onclick="switchNavTab('tab-analytics', 'إحصائيات عمليات الاستخراج (Extraction Analytics)')" style="color:var(--primary); text-decoration:none; font-weight:700;">
-                                عرض أعلى 20 رابط وسجل الطلبات الحية ←
-                            </a>
                         </div>
                     </div>
 
@@ -526,207 +452,6 @@
                     </div>
                 </section>
 
-                <!-- ==================== TAB 2: EXTRACTION ANALYTICS ==================== -->
-                <section id="tab-analytics" class="tab-panel">
-                    
-                    <!-- Top Control Bar -->
-                    <div class="card" style="margin-bottom: 24px; padding: 18px 24px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <div style="width:42px; height:42px; border-radius:var(--radius-md); background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                                </div>
-                                <div>
-                                    <h2 style="font-size:1.18rem; font-weight:800; color:var(--text-main); margin:0 0 2px 0;">مركز إحصائيات استخراج الروابط وتحليل الطلبات</h2>
-                                    <span style="font-size:0.82rem; color:var(--text-muted);">رصد وحساب كل رابط يتم استقباله عبر الـ API مع تحليل معدلات النجاح والروابط الأكثر طلباً</span>
-                                </div>
-                            </div>
-
-                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                                <button id="btnRefreshAnalytics" class="btn-action primary" onclick="loadAnalyticsData(false)">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                                    <span>تحديث الإحصائيات</span>
-                                </button>
-                                <button class="btn-action danger" onclick="handleClearAllStatsConfirm()" title="تصفير ومسح كافة الإحصائيات المسجلة">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                    <span>تصفير الإحصائيات</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 5 MAIN KPI STAT CARDS -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; margin-bottom: 24px;">
-                        
-                        <!-- Card 1: Total Extractions -->
-                        <div class="stat-card">
-                            <div class="stat-icon indigo">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                            </div>
-                            <div class="stat-info">
-                                <div class="stat-label">إجمالي عمليات الاستخراج</div>
-                                <div id="statAnalyticsTotal" class="stat-value" style="color: var(--primary);">0</div>
-                                <div class="stat-subtext" id="statAnalyticsToday" style="color:var(--secondary); font-weight:700;">+0 اليوم</div>
-                            </div>
-                        </div>
-
-                        <!-- Card 2: Success Rate -->
-                        <div class="stat-card">
-                            <div class="stat-icon emerald">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div class="stat-info">
-                                <div class="stat-label">معدل النجاح (Success Rate)</div>
-                                <div id="statAnalyticsSuccessRate" class="stat-value" style="color: var(--success);">100%</div>
-                                <div class="stat-subtext" id="statAnalyticsSuccessSub">0 ناجح • 0 فاشل</div>
-                            </div>
-                        </div>
-
-                        <!-- Card 3: Cache Hits & Savings -->
-                        <div class="stat-card">
-                            <div class="stat-icon amber">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                            </div>
-                            <div class="stat-info">
-                                <div class="stat-label">توفير الـ TTLCache</div>
-                                <div id="statAnalyticsCacheHits" class="stat-value" style="color: var(--warning);">0 (0%)</div>
-                                <div class="stat-subtext" id="statAnalyticsCacheSub">توليد فوري بدون انتظار</div>
-                            </div>
-                        </div>
-
-                        <!-- Card 4: Avg Latency -->
-                        <div class="stat-card">
-                            <div class="stat-icon cyan">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                            </div>
-                            <div class="stat-info">
-                                <div class="stat-label">متوسط سرعة الاستجابة</div>
-                                <div id="statAnalyticsAvgTime" class="stat-value" style="color: var(--secondary);">0 ms</div>
-                                <div class="stat-subtext" id="statAnalyticsTimeSub">زمن المعالجة في الخادم</div>
-                            </div>
-                        </div>
-
-                        <!-- Card 5: Unique Videos -->
-                        <div class="stat-card">
-                            <div class="stat-icon rose">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                            </div>
-                            <div class="stat-info">
-                                <div class="stat-label">فيديوهات فريدة تمت معالجتها</div>
-                                <div id="statAnalyticsUnique" class="stat-value" style="color: var(--danger);">0</div>
-                                <div class="stat-subtext">فيديوهات مختلفة مسجلة</div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- ACTIVITY CHART & TOP SOURCES ROW -->
-                    <div class="grid-2" style="margin-bottom: 24px; align-items: stretch;">
-                        
-                        <!-- Chart: Extractions Trend -->
-                        <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
-                            <div class="card-header" style="margin-bottom: 12px;">
-                                <div class="card-header-title">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M7 16l4-7 4 4 5-8"></path></svg>
-                                    <span>مخطط نشاط الاستخراج الزمني (Activity Trend)</span>
-                                </div>
-                                <div style="display:flex; gap:6px;">
-                                    <button id="btnChartModeDaily" class="btn-action primary" style="padding:4px 10px; font-size:0.75rem;" onclick="switchAnalyticsChartMode('daily')">يومي (14 يوم)</button>
-                                    <button id="btnChartModeHourly" class="btn-action" style="padding:4px 10px; font-size:0.75rem;" onclick="switchAnalyticsChartMode('hourly')">بالساعة (24 ساعة)</button>
-                                </div>
-                            </div>
-                            <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
-                                معدل طلبات الاستخراج اليومية الواردة إلى الخادم عبر مختلف المنصات والـ API.
-                            </p>
-                            <div style="position:relative; width:100%; height:220px;">
-                                <canvas id="analyticsTrendCanvas" style="width:100%; height:100%; display:block;"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Top Referrers & Domains -->
-                        <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
-                            <div class="card-header" style="margin-bottom: 12px;">
-                                <div class="card-header-title">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                                    <span>أكثر المنصات والدومينات طلباً (Top Sources)</span>
-                                </div>
-                            </div>
-                            <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px;">
-                                توزيع طلبات الاستخراج حسب الدومين أو منصة العميل الطالبة (مثل Laravel أو Direct API).
-                            </p>
-                            <div id="topReferrersContainer" style="flex:1;">
-                                <!-- Populated dynamically by analytics.js -->
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- TOP EXTRACTED VIDEOS TABLE -->
-                    <div class="card" style="margin-bottom: 24px;">
-                        <div class="card-header">
-                            <div class="card-header-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                                <span>أكثر الروابط طلباً واستخراجاً (Top Extracted Videos)</span>
-                            </div>
-                            <span class="comp-badge cyan" style="font-size:0.78rem;">مرتبة حسب الأكثر استخراجاً</span>
-                        </div>
-                        <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:16px;">
-                            قائمة الفيديوهات التي تم طلب استخراج روابطها المباشرة بأعلى تكرار عبر الـ API مع إمكانية إعادة استخراجها أو نسخ الرابط فوراً.
-                        </p>
-
-                        <div class="table-responsive">
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 50px; text-align: center;">#</th>
-                                        <th>الفيديو (العنوان والقناة)</th>
-                                        <th style="min-width: 170px;">عدد مرات الاستخراج</th>
-                                        <th style="text-align: center;">التوفير بالكاش</th>
-                                        <th>آخر طلب استخراج</th>
-                                        <th style="text-align: left;">إجراءات</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="topVideosTableBody">
-                                    <!-- Populated dynamically by analytics.js -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- RECENT EXTRACTIONS ACTIVITY FEED -->
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-header-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                                <span>سجل أحدث عمليات الاستخراج المباشرة (Recent Extractions Feed)</span>
-                            </div>
-                            <span class="comp-badge healthy" style="font-size:0.78rem;">تحديث تلقائي لحظي</span>
-                        </div>
-                        <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:16px;">
-                            سجل حي لحظي لآخر الطلبات المستلمة عبر الـ API مع توضيح حالة العملية، زمن الاستجابة، ودومين المنصة الطالبة.
-                        </p>
-
-                        <div class="table-responsive">
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 100px; text-align: center;">الحالة</th>
-                                        <th>الفيديو والرابط</th>
-                                        <th>المنصة / الدومين</th>
-                                        <th>زمن المعالجة</th>
-                                        <th>الآي بي</th>
-                                        <th>التوقيت</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="recentExtractionsTableBody">
-                                    <!-- Populated dynamically by analytics.js -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                </section>
-
                 <!-- ==================== TAB 2: LIVE TELEMETRY CHARTS ==================== -->
                 <section id="tab-resources" class="tab-panel">
                     
@@ -735,10 +460,6 @@
                             <div class="card-header-title">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                                 <span>مركز مراقبة موارد الخادم والرسوم البيانية الحية (Server Live Telemetry Charts)</span>
-                                <span class="comp-badge healthy" style="display:inline-flex; align-items:center; gap:6px; font-size:0.75rem; margin-right:8px;">
-                                    <span class="status-indicator-dot" style="background:#13deb9; width:8px; height:8px;"></span>
-                                    <span>مباشر ونشط</span>
-                                </span>
                             </div>
                             <div style="display: flex; gap: 12px; align-items: center;">
                                 <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">
@@ -928,8 +649,10 @@
                         </div>
 
                         <div style="background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:12px 16px;">
-                            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:6px;">الكود المطلوب في ملف لارافيل <code style="color:var(--text-main);">.env</code>:</div>
-                            <code id="laravelEnvApiKeyCode" style="display:block; font-family:var(--font-mono); font-size:0.85rem; color:var(--primary); direction:ltr; text-align:left;">YTDLP_API_KEY=--</code>
+                            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:6px;">الكود المطلوب في ملف لارافيل <code style="color:var(--text-main);">c:\laragon\www\lms\.env</code>:</div>
+                            <code style="display:block; font-family:var(--font-mono); font-size:0.85rem; color:var(--primary); direction:ltr; text-align:left;">
+                                YTDLP_API_KEY=sec_aab36b5c92f3631d717935b7cfa5da0e
+                            </code>
                         </div>
                     </div>
 
@@ -998,57 +721,13 @@
                             </div>
 
                             <div style="margin-bottom:16px; padding-top:14px; border-top:1px solid var(--border-subtle);">
-                                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-                                    <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;">إعدادات PO Token و Visitor Data (لتخطي BotGuard)</div>
-                                    <button type="button" id="btnAutoGeneratePoToken" class="btn-action light-primary" style="padding:4px 10px; font-size:0.78rem;" onclick="handleAutoGeneratePoToken()">
-                                        <span>⚡ توليد تلقائي (Auto Extract)</span>
-                                    </button>
-                                </div>
+                                <div style="font-weight:700; color:var(--text-main); font-size:0.92rem; margin-bottom:8px;">إعدادات PO Token و Visitor Data (لتخطي BotGuard)</div>
                                 <div class="form-group" style="margin-bottom: 10px;">
                                     <input type="text" id="poTokenInput" class="form-input" placeholder="PO Token (مثال: MnQ3...)">
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0;">
                                     <input type="text" id="visitorDataInput" class="form-input" placeholder="Visitor Data">
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Telegram & Webhook Alerts Card -->
-                        <div class="card">
-                            <div class="card-header">
-                                <div class="card-header-title">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                                    <span>نظام التنبيهات الفورية (Telegram & Webhook Alerts)</span>
-                                </div>
-                                <div style="display:flex; gap:8px;">
-                                    <button type="button" id="btnTestAlert" class="btn-action light-primary" onclick="handleTestAlert()">
-                                        <span>🔔 إرسال تنبيه تجريبي</span>
-                                    </button>
-                                    <button type="button" class="btn-action primary" onclick="handleSaveAdvancedSettings()">
-                                        <span>حفظ التنبيهات</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                                <div>
-                                    <div style="font-weight:700; color:var(--text-main); font-size:0.92rem;">تفعيل إشعارات الطوارئ التلقائية</div>
-                                    <div style="font-size:0.78rem; color:var(--text-muted);">إرسال تنبيه فوري عند انتهاء صلاحية الكوكيز أو تعطل كافة استراتيجيات الاستخراج.</div>
-                                </div>
-                                <input type="checkbox" id="alertsEnabledToggle" style="width:20px; height:20px; cursor:pointer;">
-                            </div>
-
-                            <div class="form-group" style="margin-bottom: 10px;">
-                                <label class="form-label">توكن بوت تيليجرام (Telegram Bot Token):</label>
-                                <input type="text" id="telegramBotTokenInput" class="form-input" style="direction:ltr;" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 10px;">
-                                <label class="form-label">معرف محادثة تيليجرام (Telegram Chat ID):</label>
-                                <input type="text" id="telegramChatIdInput" class="form-input" style="direction:ltr;" placeholder="-1001234567890 أو 987654321">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">رابط Webhook خارجي (Slack / Discord / Laravel Webhook):</label>
-                                <input type="text" id="webhookUrlInput" class="form-input" style="direction:ltr;" placeholder="https://hooks.slack.com/... أو https://your-domain.com/api/webhook">
                             </div>
                         </div>
 
@@ -1164,11 +843,6 @@
                             المسار النشط لملف الكوكيز على الخادم: <code id="cookiePathLabel" style="color: var(--primary); font-family: var(--font-mono);">/app/cookies.txt</code>
                         </div>
 
-                        <div class="form-group" style="margin-bottom: 12px;">
-                            <label class="form-label">اسم تعريفي للحساب في مسبح الكوكيز (اختياري):</label>
-                            <input type="text" id="cookieLabelInput" class="form-input" placeholder="مثال: حساب يوتيوب الأساسي #1 أو حساب احتياطي">
-                        </div>
-
                         <div class="form-group">
                             <label class="form-label">الصق نص الكوكيز الجديد هنا بأي صيغة (Netscape أو JSON من إضافة Cookie-Editor أو Header):</label>
                             <textarea id="cookiesTextInput" class="form-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;1826071993&#9;SID&#9;...&#10;&#10;أو مصفوفة JSON من إضافة Cookie-Editor"></textarea>
@@ -1181,39 +855,8 @@
                             </label>
                             <button id="btnSaveCookies" class="btn-action success" onclick="handleSaveCookies()">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                <span>حفظ وتفعيل الكوكيز فوراً (+ إضافة للمسبح)</span>
+                                <span>حفظ وتفعيل الكوكيز فوراً</span>
                             </button>
-                        </div>
-                    </div>
-
-                    <!-- MULTI-ACCOUNT COOKIE POOL CARD -->
-                    <div class="card" style="margin-bottom: 24px;">
-                        <div class="card-header">
-                            <div class="card-header-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                                <span>مسبح تدوير حسابات الكوكيز التلقائي (Multi-Account Round-Robin Pool)</span>
-                            </div>
-                            <span class="comp-badge cyan" id="cookiePoolSummaryBadge">0 حساب مسجل</span>
-                        </div>
-                        <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:14px;">
-                            يحتفظ النظام بجميع حسابات الكوكيز المضافة ويقوم بالتبديل التلقائي بينها (Round-Robin) لتوزيع الطلبات وتفادي حظر حساب واحد، مع تعطيل الحساب الذي يتكرر فشله تلقائياً.
-                        </p>
-                        <div class="table-responsive">
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th>الحساب / المعرف</th>
-                                        <th>عدد الكوكيز</th>
-                                        <th>الاستخدام / الأخطاء</th>
-                                        <th>تاريخ الانتهاء</th>
-                                        <th>الحالة</th>
-                                        <th style="text-align: left;">إجراءات</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="cookiePoolTableBody">
-                                    <tr><td colspan="6" style="text-align:center; padding:18px; color:var(--text-muted);">جاري تحميل مسبح الحسابات...</td></tr>
-                                </tbody>
-                            </table>
                         </div>
                     </div>
 
@@ -1396,94 +1039,75 @@
     </div>
 
     <!-- ==================== INTERACTIVE REMOTE BROWSER MODAL ==================== -->
-    <div id="remoteBrowserModal" class="auth-lock-overlay" style="display:none; z-index:99999; backdrop-filter:blur(10px); background:rgba(12,20,35,0.88); align-items:center; justify-content:center; padding:12px;">
-        <div id="remoteBrowserContainer" class="remote-browser-container" style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-lg); width:100%; max-width:1180px; max-height:96vh; display:flex; flex-direction:column; box-shadow:var(--shadow-elevated); overflow:hidden; transition:all 0.2s ease;">
+    <div id="remoteBrowserModal" class="auth-lock-overlay" style="display:none; z-index:99999; backdrop-filter:blur(10px); background:rgba(17,28,45,0.85); align-items:center; justify-content:center; padding:16px;">
+        <div class="remote-browser-container" style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-lg); width:100%; max-width:1100px; max-height:94vh; display:flex; flex-direction:column; box-shadow:var(--shadow-elevated); overflow:hidden;">
             <!-- Modal Header / Titlebar -->
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid var(--border-subtle); background:var(--bg-card-hover); gap:10px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border-subtle); background:var(--bg-card-hover); gap:12px;">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <!-- Google icon -->
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                     </svg>
-                    <span style="font-size:0.92rem; font-weight:800; color:var(--text-main);">المتصفح التفاعلي الذكي — Google / YouTube</span>
-                    <span id="remoteBrowserStatusBadge" class="comp-badge primary" style="font-size:0.72rem;">بانتظار تسجيل الدخول</span>
-                    <span id="remoteBrowserActionIndicator" style="display:none; font-size:0.72rem; padding:2px 8px; border-radius:99px; background:rgba(93,135,255,0.18); color:var(--primary); font-weight:700;">⚡ جاري التنفيذ...</span>
+                    <div>
+                        <div style="font-size:0.95rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+                            <span>نافذة المتصفح المباشرة - تسجيل دخول Google / YouTube</span>
+                            <span id="remoteBrowserStatusBadge" class="comp-badge primary" style="font-size:0.7rem;">بانتظار تسجيل الدخول</span>
+                        </div>
+                        <div id="remoteBrowserUrlBar" style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:650px;">
+                            https://accounts.google.com/ServiceLogin...
+                        </div>
+                    </div>
                 </div>
 
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap;">
-                    <button class="btn-action" style="padding:5px 9px; font-size:0.78rem;" onclick="navigateRemoteBrowser('https://www.youtube.com')" title="فتح موقع YouTube مباشرة">
+                    <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://www.youtube.com')" title="فتح موقع YouTube مباشرة">
                         📺 <span>يوتيوب</span>
                     </button>
-                    <button class="btn-action" style="padding:5px 9px; font-size:0.78rem;" onclick="navigateRemoteBrowser('https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Dar%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252F&hl=ar')" title="فتح صفحة دخول Google المباشرة مع التوجيه التلقائي ليوتيوب">
+                    <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://accounts.google.com/ServiceLogin?service=youtube&hl=ar')" title="فتح صفحة دخول Google المباشرة">
                         🔐 <span>دخول Google</span>
                     </button>
-                    <button class="btn-action light-primary" style="padding:5px 9px; font-size:0.78rem;" onclick="navigateRemoteBrowser('https://stackoverflow.com/users/login')" title="تسجيل الدخول عبر Google SSO">
+                    <button class="btn-action light-primary" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://stackoverflow.com/users/login')" title="تسجيل الدخول عبر Google SSO لتفادي كشف البوت">
                         🌐 <span>دخول بديل (SSO)</span>
                     </button>
-                    <button class="btn-action" id="btnToggleBrowserFullscreen" style="padding:5px 9px; font-size:0.78rem;" onclick="toggleRemoteBrowserFullscreen()" title="تكبير / تصغير نافذة المتصفح">
-                        ⛶ <span>تكبير</span>
+                    <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="reloadRemoteBrowser()" title="إعادة تحميل الصفحة">
+                        🔄 <span>تحديث</span>
                     </button>
-                    <button class="btn-action success" style="padding:5px 11px; font-size:0.78rem;" onclick="extractCookiesNow()" title="استخراج وحفظ الكوكيز فوراً">
+                    <button class="btn-action success" style="padding:6px 12px; font-size:0.8rem;" onclick="extractCookiesNow()" title="استخراج وحفظ الكوكيز فوراً">
                         💾 <span>استخراج الكوكيز الآن</span>
                     </button>
-                    <button class="btn-action danger" style="padding:5px 9px; font-size:0.78rem;" onclick="closeRemoteBrowserModal()" title="إغلاق وإلغاء الجلسة">
+                    <button class="btn-action danger" style="padding:6px 10px; font-size:0.8rem;" onclick="closeRemoteBrowserModal()" title="إغلاق وإلغاء الجلسة">
                         ✖
                     </button>
                 </div>
             </div>
 
-            <!-- Browser Navigation & Address Bar -->
-            <div style="display:flex; align-items:center; gap:6px; padding:7px 14px; background:var(--bg-surface); border-bottom:1px solid var(--border-subtle); direction:ltr;">
-                <button class="btn-action" style="padding:4px 9px; font-size:0.8rem;" onclick="browserHistoryNav('back')" title="رجوع للصفحة السابقة">←</button>
-                <button class="btn-action" style="padding:4px 9px; font-size:0.8rem;" onclick="browserHistoryNav('forward')" title="تقدم للصفحة التالية">→</button>
-                <button class="btn-action" style="padding:4px 9px; font-size:0.8rem;" onclick="reloadRemoteBrowser()" title="إعادة تحميل الصفحة">🔄</button>
-                <input type="text" id="remoteBrowserUrlBar" class="form-input" style="flex:1; padding:5px 10px; font-size:0.78rem; font-family:var(--font-mono); direction:ltr; text-align:left;" value="https://accounts.google.com/ServiceLogin..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); navigateRemoteBrowser(this.value); }" title="اضغط Enter للانتقال للرابط">
-                <button class="btn-action" style="padding:4px 10px; font-size:0.76rem;" onclick="navigateRemoteBrowser(document.getElementById('remoteBrowserUrlBar').value)">انتقال</button>
-            </div>
-
-            <!-- Viewport Screen Area (Direct Keyboard & Mouse Wheel Enabled) -->
-            <div id="remoteBrowserScreenWrapper" tabindex="0" style="position:relative; background:#0b0f19; overflow:auto; display:flex; justify-content:center; align-items:center; min-height:400px; max-height:66vh; cursor:pointer; outline:none;"
-                 onclick="focusBrowserScreen()"
-                 onfocus="onBrowserScreenFocus(true)"
-                 onblur="onBrowserScreenFocus(false)">
-                <div id="directKeyboardBadge" style="position:absolute; top:10px; left:10px; z-index:5; background:rgba(15,23,42,0.78); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:4px 10px; border-radius:99px; font-size:0.72rem; pointer-events:none; transition:all 0.2s;">
-                    🖱️ انقر داخل الشاشة للكتابة المباشرة من الكيبورد أو التمرير بعجلة الماوس
-                </div>
-                <div id="remoteBrowserImgContainer" style="position:relative; display:inline-block; line-height:0;">
-                    <img id="remoteBrowserImg" src="" alt="شاشة المتصفح" draggable="false" style="max-width:100%; height:auto; display:block; user-select:none;" onclick="handleBrowserScreenClick(event)">
-                    <div id="remoteBrowserClickRipple" style="display:none; position:absolute; width:26px; height:26px; margin-left:-13px; margin-top:-13px; border:2.5px solid #38bdf8; background:rgba(56,189,248,0.28); border-radius:50%; pointer-events:none; z-index:6; transform:scale(1); transition:transform 0.35s ease, opacity 0.35s ease;"></div>
-                </div>
-                <div id="remoteBrowserSpinner" style="position:absolute; display:none; background:rgba(15,23,42,0.82); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:14px 20px; color:#fff; font-size:0.88rem; align-items:center; gap:10px; z-index:10;">
+            <!-- Viewport Screen Area -->
+            <div id="remoteBrowserScreenWrapper" style="position:relative; background:#000; overflow:auto; display:flex; justify-content:center; align-items:center; min-height:380px; max-height:62vh; cursor:crosshair;">
+                <img id="remoteBrowserImg" src="" alt="شاشة المتصفح" style="max-width:100%; height:auto; display:block; user-select:none;" onclick="handleBrowserScreenClick(event)">
+                <div id="remoteBrowserSpinner" style="position:absolute; display:none; background:rgba(0,0,0,0.6); border-radius:8px; padding:12px; color:#fff; font-size:0.85rem; align-items:center; gap:8px;">
                     <div class="spinner"></div> <span>جاري المعالجة...</span>
                 </div>
             </div>
 
-            <!-- Smart Interactive Toolbar at bottom -->
-            <div style="padding:10px 16px; border-top:1px solid var(--border-subtle); background:var(--bg-card-hover); display:flex; flex-direction:column; gap:8px;">
-                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    <div style="position:relative; flex:1; min-width:240px; display:flex; align-items:center;">
-                        <input type="text" id="browserTypeInput" class="form-input" style="width:100%; font-size:0.9rem; padding-left:36px;" placeholder="⚡ اكتب البريد أو كلمة المرور هنا واضغط Enter (تعبئة ذكية تلقائية للحقل)..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendBrowserTypedText(true, true); }">
-                        <button type="button" onclick="toggleBrowserInputSecret()" title="إظهار / إخفاء النص (لكلمات المرور)" style="position:absolute; left:8px; background:none; border:none; cursor:pointer; font-size:0.95rem; opacity:0.75;">👁️</button>
-                    </div>
-                    <button class="btn-action primary" onclick="sendBrowserTypedText(true, true)" style="white-space:nowrap;" title="يحدد حقل البريد/الباسورد في الصفحة تلقائياً ويكتب النص ويضغط Enter">
-                        ⚡ <span>تعبئة ذكية و Enter</span>
+            <!-- Interactive Toolbar at bottom -->
+            <div style="padding:12px 18px; border-top:1px solid var(--border-subtle); background:var(--bg-card-hover); display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="browserTypeInput" class="form-input" style="flex:1; min-width:240px; font-size:0.9rem;" placeholder="اكتب البريد الإلكتروني أو كلمة المرور هنا واضغط إرسال..." onkeydown="if(event.key==='Enter') sendBrowserTypedText(true)">
+                    <button class="btn-action primary" onclick="sendBrowserTypedText(false)" style="white-space:nowrap;">
+                        ⌨️ <span>كتابة</span>
                     </button>
-                    <button class="btn-action" onclick="sendBrowserTypedText(false, true)" style="white-space:nowrap;" title="كتابة النص في الحقل بدون الضغط على Enter">
-                        ⌨️ <span>كتابة فقط</span>
+                    <button class="btn-action primary" onclick="sendBrowserTypedText(true)" style="white-space:nowrap;">
+                        ↵ <span>كتابة و Enter</span>
                     </button>
-                    <button class="btn-action" onclick="clearRemoteBrowserInput()" title="مسح محتوى الحقل الحالي في المتصفح (Ctrl+A + Backspace)">
-                        🧹 <span>مسح الحقل</span>
-                    </button>
-                    <button class="btn-action" onclick="sendBrowserKey('Enter')" title="ضغط زر Enter">Enter ↵</button>
-                    <button class="btn-action" onclick="sendBrowserKey('Tab')" title="الانتقال للحقل التالي (Tab)">Tab ⇥</button>
-                    <button class="btn-action" onclick="sendBrowserKey('Backspace')" title="حذف حرف (Backspace)">⌫</button>
-                    <button class="btn-action" onclick="scrollRemoteBrowser(-320)" title="تمرير الصفحة لأعلى">▲ أعلى</button>
-                    <button class="btn-action" onclick="scrollRemoteBrowser(320)" title="تمرير الصفحة لأسفل">▼ أسفل</button>
+                    <button class="btn-action" onclick="sendBrowserKey('Enter')">Enter ↵</button>
+                    <button class="btn-action" onclick="sendBrowserKey('Backspace')">⌫ مسح</button>
+                    <button class="btn-action" onclick="sendBrowserKey('Tab')">Tab ⇥</button>
                 </div>
-                <div style="font-size:0.76rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-                    <span>💡 <strong>تحكم مزدوج سهل:</strong> يمكنك إما <strong>الكتابة مباشرة من الكيبورد والماوس داخل الشاشة</strong> (مع دعم اللصق <code>Ctrl+V</code> والعجلة)، أو الكتابة في الشريط بالأسفل والضغط على <strong>"⚡ تعبئة ذكية و Enter"</strong> لملء الحقل تلقائياً!</span>
+                <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+                    <span>💡 <strong>طريقة الاستخدام:</strong> اضغط بالماوس على حقل البريد في الصورة بالأعلى لتحديده، ثم اكتب في الشريط واضغط "كتابة و Enter". بمجرد قبول الحساب والدخول سيتم حفظ الكوكيز تلقائياً!</span>
                     <span id="remoteBrowserCountdown" style="color:var(--primary); font-weight:700;"></span>
                 </div>
             </div>
@@ -1549,7 +1173,6 @@
     <script src="/static/js/security.js"></script>
     <script src="/static/js/terminal.js"></script>
     <script src="/static/js/extractor.js"></script>
-    <script src="/static/js/analytics.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

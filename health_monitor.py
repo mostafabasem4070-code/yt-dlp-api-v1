@@ -7,35 +7,20 @@ import subprocess
 import urllib.request
 from typing import Dict, Any, List, Optional, Tuple
 
-from cookie_manager import read_active_cookies, analyze_cookies_health, get_cookie_pool_summary
-from updater_service import get_updater_status
-from security_manager import get_security_settings, get_all_worker_urls
+from cookie_manager import read_active_cookies, analyze_cookies_health
+from updater_service import get_updater_status, get_current_ytdlp_version, get_latest_pypi_version, _parse_version_tuple
 
 logger = logging.getLogger("health_monitor")
 
-# كاش لإصدارات محركات سطر الأوامر الثابتة (Deno, Node, FFmpeg) لتجنب استدعاء subprocess في كل تحديث للوحة
-_CLI_VERSION_CACHE: Dict[str, Tuple[bool, str, float]] = {}
-_CLI_CACHE_TTL = 600.0  # 10 دقائق
-
 
 def _run_quick_cmd(cmd: List[str], timeout: int = 4) -> Tuple[bool, str]:
-    """تشغيل أمر نظام سريع لجلب الإصدار مع تخزين مؤقت (Cache) وحماية من التعليق."""
-    cache_key = " ".join(cmd)
-    now = time.time()
-    if cache_key in _CLI_VERSION_CACHE:
-        ok, ver, ts = _CLI_VERSION_CACHE[cache_key]
-        if (now - ts) < _CLI_CACHE_TTL:
-            return ok, ver
-
+    """تشغيل أمر نظام سريع لجلب الإصدار مع حماية من التعليق."""
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         if proc.returncode == 0:
-            lines = (proc.stdout.strip() or proc.stderr.strip()).splitlines()
-            first_line = lines[0] if lines else "Installed"
-            _CLI_VERSION_CACHE[cache_key] = (True, first_line, now)
+            first_line = (proc.stdout.strip() or proc.stderr.strip()).splitlines()[0]
             return True, first_line
-        err = proc.stderr.strip() or "Non-zero exit code"
-        return False, err
+        return False, proc.stderr.strip() or "Non-zero exit code"
     except Exception as e:
         return False, str(e)
 
@@ -164,13 +149,13 @@ def check_ffmpeg_health() -> Dict[str, Any]:
         "name": "FFmpeg Media Core (محرك الوسائط)",
         "category": "engine",
         "state": "running",
-        "state_text": "يعمل وجاهز للدمج اللحظي (1080p/4K)",
+        "state_text": "يعمل وجاهز للدمج",
         "installed": True,
         "status": "healthy",
         "version": ver_str[:40] if ok else "موجود",
         "path": ffmpeg_path,
-        "message": "مثبت وجاهز للبث المدمج الفوري (/api/stream/mux) لجودات 1080p و 4K مع الصوت.",
-        "badge": "جاهز للدمج",
+        "message": "مثبت وجاهز لمعالجة الوسائط المتعددة والدمج المباشر.",
+        "badge": "جاهز",
         "action_type": None
     }
 
@@ -216,18 +201,16 @@ def check_ytdlp_health() -> Dict[str, Any]:
 
 
 def check_cookies_component() -> Dict[str, Any]:
-    """فحص حالة مكون الكوكيز المسجلة ومسبح التدوير وصلاحيتها وتواريخ انتهائها."""
+    """فحص حالة مكون الكوكيز المسجلة وصلاحيتها وتواريخ انتهائها."""
     cookies, cookie_path = read_active_cookies()
     analysis = analyze_cookies_health(cookies)
-    pool_summary = get_cookie_pool_summary()
     file_size = os.path.getsize(cookie_path) if cookie_path and os.path.exists(cookie_path) else 0
 
     status = analysis["status"]
     days = analysis.get("days_until_expiry", 999)
-    pool_count = len(pool_summary)
 
-    if (status in ("valid", "partial") and analysis.get("has_auth")) or len(analysis.get("auth_cookies_found", [])) >= 2:
-        if days <= 3 and analysis.get("earliest_expiry_timestamp", 0) > 0:
+    if status == "valid" and analysis.get("has_auth"):
+        if days <= 3:
             comp_status = "warning"
             state = "needs_update"
             state_text = f"تحتاج لتجديد (تنتهي خلال {days} أيام)"
@@ -235,9 +218,8 @@ def check_cookies_component() -> Dict[str, Any]:
         else:
             comp_status = "healthy"
             state = "running"
-            pool_tag = f" | مسبح التدوير: {pool_count} حساب" if pool_count > 0 else ""
-            state_text = f"تعمل بنشاط ومسجلة ({analysis['total_cookies']} كوكي{pool_tag})"
-            badge = f"صالحة ({pool_count or 1} حساب)"
+            state_text = f"تعمل بنشاط ومسجلة ({analysis['total_cookies']} كوكي)"
+            badge = "صالحة ونشطة"
     elif status == "guest_only":
         comp_status = "warning"
         state = "warning"
@@ -251,12 +233,12 @@ def check_cookies_component() -> Dict[str, Any]:
     else:
         comp_status = "warning"
         state = "stopped"
-        state_text = "متوقفة (وضع الزائر التلقائي)"
-        badge = "وضع الزائر"
+        state_text = "متوقفة (غير متوفرة)"
+        badge = "غير متوفرة"
 
     return {
         "key": "cookies",
-        "name": "YouTube Cookies Session (جلسة ومسبح الكوكيز)",
+        "name": "YouTube Cookies Session (جلسة كوكيز يوتيوب)",
         "category": "core",
         "state": state,
         "state_text": state_text,
@@ -264,7 +246,6 @@ def check_cookies_component() -> Dict[str, Any]:
         "file_path": cookie_path,
         "file_size_bytes": file_size,
         "total_cookies": analysis["total_cookies"],
-        "pool_accounts_count": pool_count,
         "has_auth": analysis["has_auth"],
         "auth_cookies_found": analysis["auth_cookies_found"],
         "days_until_expiry": analysis.get("days_until_expiry", 0),
@@ -289,7 +270,7 @@ def check_youtube_connectivity() -> Dict[str, Any]:
             "https://www.youtube.com/generate_204",
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         )
-        with urllib.request.urlopen(req, timeout=4) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             latency_ms = round((time.time() - start_time) * 1000, 1)
             code = response.getcode()
             return {
@@ -333,17 +314,17 @@ def check_updater_worker_health() -> Dict[str, Any]:
 
     return {
         "key": "auto_updater",
-        "name": "Auto-Updater Worker (خدمة التحديث والصيانة)",
+        "name": "Auto-Updater Worker (خدمة التحديث التلقائي)",
         "category": "service",
         "state": "running" if enabled else "stopped",
         "state_text": "تعمل بالخلفية (فحص دوري كل 12 ساعة)" if enabled else "متوقفة",
         "status": "healthy" if enabled else "warning",
         "badge": "مفعل 12h" if enabled else "معطل",
         "installed": True,
-        "version": "1.6",
+        "version": "1.0",
         "schedule": "كل 12 ساعة تلقائياً",
         "last_status": last_status,
-        "message": f"المهمة الخلفية نشطة لمراقبة وتحديث yt-dlp وفحص صلاحية الكوكيز. الحالة: {last_msg}",
+        "message": f"المهمة الخلفية نشطة لمراقبة وتحديث yt-dlp دون انقطاع. الحالة الحالية: {last_msg}",
         "action_type": "update_ytdlp"
     }
 
@@ -356,17 +337,17 @@ def check_streaming_service_health() -> Dict[str, Any]:
         chunk_mb = round(DEFAULT_CHUNK_SIZE / (1024 * 1024), 1)
         return {
             "key": "streaming_engine",
-            "name": "Chunked Range & Mux Engine (محرك البث والدمج)",
+            "name": "Chunked Range Stream Engine (محرك البث والتجزئة)",
             "category": "core",
             "state": "running",
-            "state_text": "يعمل مع Connection Pool وحماية SSRF",
+            "state_text": "يعمل وجاهز لفك خنق السرعة",
             "status": "healthy",
             "badge": f"{chunk_mb}MB Chunks",
             "installed": True,
-            "version": "1.6.0",
+            "version": "1.4.0",
             "chunk_size": f"{chunk_mb} MB",
             "cached_streams": cached_items,
-            "message": f"المحرك نشط ويدعم تقطيع الفيديو لشرائح {chunk_mb}MB والدمج اللحظي (1080p/4K) مع حماية SSRF.",
+            "message": f"المحرك نشط ويدعم تقطيع الفيديو لشرائح {chunk_mb}MB مع دعم التقديم والترجيع (Seeking) السلس وتجاوز قيود يوتيوب.",
             "action_type": None
         }
     except Exception as e:
@@ -385,9 +366,10 @@ def check_streaming_service_health() -> Dict[str, Any]:
 
 
 def check_cloudflare_worker_health() -> Dict[str, Any]:
-    """فحص إعدادات وحالة شبكة بروكسي الحافة (Cloudflare Workers) من لوحة التحكم ومتغيرات البيئة."""
-    proxies = get_all_worker_urls()
-    if proxies:
+    """فحص إعدادات وحالة شبكة بروكسي الحافة (Cloudflare Workers)."""
+    proxy_urls_str = os.getenv("STREAM_PROXY_URL", "").strip()
+    if proxy_urls_str:
+        proxies = [p.strip() for p in proxy_urls_str.split(",") if p.strip()]
         return {
             "key": "cloudflare_worker",
             "name": "Cloudflare Edge Workers (بروكسي الحافة العالمي)",
@@ -412,7 +394,7 @@ def check_cloudflare_worker_health() -> Dict[str, Any]:
             "badge": "محلي فقط",
             "installed": False,
             "proxies": [],
-            "message": "لم يتم إضافة روابط Workers بعد. السيرفر حالياً يبث المقاطع بنجاح عبر المحرك الداخلي.",
+            "message": "لم يتم تعيين STREAM_PROXY_URL في .env. السيرفر حالياً يبث المقاطع بنجاح عبر المحرك الداخلي بدون كلاود فلير.",
             "action_type": "switch_tab_proxies"
         }
 
@@ -420,6 +402,7 @@ def check_cloudflare_worker_health() -> Dict[str, Any]:
 def check_security_firewall_health() -> Dict[str, Any]:
     """فحص جدار حماية الأمان وحظر الدومينات الغريبة ومصادقة الجلسات."""
     try:
+        from security_manager import get_security_settings
         settings = get_security_settings()
         domains = settings.get("allowed_domains", ["*"])
         strict = settings.get("strict_mode", False)
@@ -469,14 +452,14 @@ def check_ttl_cache_component() -> Dict[str, Any]:
 
     return {
         "key": "ttl_cache",
-        "name": "Extraction TTLCache & SingleFlight (ذاكرة الكاش)",
+        "name": "Extraction TTLCache (ذاكرة الكاش المؤقتة)",
         "category": "cache",
         "state": "running",
-        "state_text": "نشطة مع منع تكرار الطلبات المتزامنة",
+        "state_text": "نشطة وتعمل بكفاءة",
         "status": "healthy",
         "badge": "سريعة ونشطة",
         "installed": True,
-        "message": f"ذاكرة الكاش المؤقتة TTLCache وتقنية SingleFlight تعملان على تسريع الاستخراج ({stream_count} ترويسة بث مسجلة).",
+        "message": f"ذاكرة الكاش المؤقتة TTLCache تعمل على تسريع استخراج الروابط مع حفظ ترويسات البث ({stream_count} ترويسة مسجلة).",
         "action_type": "clear_cache"
     }
 
@@ -500,6 +483,7 @@ def format_uptime(seconds: int) -> str:
 def check_system_resources() -> Dict[str, Any]:
     """
     فحص حي لحظي لموارد خادم السيرفر: المعالج (CPU)، الذاكرة (RAM)، التخزين (Disk)، والشبكة (Bandwidth).
+    يدعم psutil بالكامل مع محرك بديل فوري عبر نواة النظام (/proc و shutil).
     """
     uptime_sec = int(time.time() - _SERVER_START_TIME)
 
@@ -513,6 +497,7 @@ def check_system_resources() -> Dict[str, Any]:
     net_sent_mb = 0.0
     net_recv_mb = 0.0
 
+    # 1. فحص القرص (shutil مدمجة دائماً في بايثون)
     try:
         du = shutil.disk_usage(os.getcwd())
         disk_total_gb = round(du.total / (1024**3), 2)
@@ -525,9 +510,10 @@ def check_system_resources() -> Dict[str, Any]:
         disk_free_gb = 0.0
         disk_percent = 0.0
 
+    # 2. فحص CPU والرام عبر psutil
     try:
         import psutil
-        cpu_percent = psutil.cpu_percent(interval=None)
+        cpu_percent = psutil.cpu_percent(interval=0.1)
         vm = psutil.virtual_memory()
         ram_total_mb = round(vm.total / (1024**2), 1)
         ram_used_mb = round(vm.used / (1024**2), 1)
@@ -541,6 +527,7 @@ def check_system_resources() -> Dict[str, Any]:
         net_sent_mb = round(net.bytes_sent / (1024**2), 2)
         net_recv_mb = round(net.bytes_recv / (1024**2), 2)
     except Exception:
+        # المحرك البديل لأنظمة Linux الحاوية (Railway / Docker)
         if os.path.exists("/proc/meminfo"):
             try:
                 mem = {}
@@ -608,53 +595,14 @@ def check_system_resources() -> Dict[str, Any]:
     }
 
 
-def check_extraction_stats_component() -> Dict[str, Any]:
-    """فحص محرك إحصائيات الاستخراج وسجل العمليات الحية."""
-    try:
-        from stats_manager import get_extraction_summary_metrics
-        res = get_extraction_summary_metrics(top_limit=1, recent_limit=1)
-        kpis = res.get("kpis", {})
-        total = kpis.get("total_extractions", 0)
-        today = kpis.get("today_extractions", 0)
-        rate = kpis.get("success_rate", 100.0)
-        return {
-            "key": "extraction_stats",
-            "name": "محرك إحصائيات الاستخراج (Extraction Analytics)",
-            "category": "service",
-            "state": "running",
-            "state_text": f"نشط ويحسب ({total} طلب كلي | {today} اليوم)",
-            "installed": True,
-            "status": "healthy",
-            "version": "SQLite WAL v2.1",
-            "path": None,
-            "message": f"تم تسجيل {total} عملية استخراج بنجاح ({today} اليوم) مع رصد أعلى الروابط ومعدلات النجاح بنسبة {rate}%.",
-            "badge": f"{total} طلب",
-            "action_type": None,
-            "kpis": kpis
-        }
-    except Exception as e:
-        return {
-            "key": "extraction_stats",
-            "name": "محرك إحصائيات الاستخراج (Extraction Analytics)",
-            "category": "service",
-            "state": "stopped",
-            "state_text": "غير نشط",
-            "installed": False,
-            "status": "warning",
-            "version": None,
-            "path": None,
-            "message": f"خطأ في قراءة قاعدة بيانات الإحصائيات: {e}",
-            "badge": "تنبيه ⚠️",
-            "action_type": None
-        }
-
-
 def get_full_monitoring_report() -> Dict[str, Any]:
     """
-    إنشاء تقرير شامل وموحد لمركز مراقبة كافة مكونات ومحركات النظام وموارده.
+    إنشاء تقرير شامل وموحد لمركز مراقبة كافة مكونات ومحركات النظام وموارده:
+    (يعمل / يحتاج لتحديث / متوقف أو غير متوفر / تنبيه).
     """
     resources = check_system_resources()
 
+    # فحص كافة مكونات النظام الـ 10
     cookies_info = check_cookies_component()
     ytdlp_info = check_ytdlp_health()
     node_info = check_node_health()
@@ -666,12 +614,10 @@ def get_full_monitoring_report() -> Dict[str, Any]:
     cloudflare_info = check_cloudflare_worker_health()
     security_info = check_security_firewall_health()
     ttl_cache_info = check_ttl_cache_component()
-    extraction_stats_info = check_extraction_stats_component()
 
     components_list = [
         ytdlp_info,
         cookies_info,
-        extraction_stats_info,
         node_info,
         deno_info,
         ffmpeg_info,
@@ -689,6 +635,7 @@ def get_full_monitoring_report() -> Dict[str, Any]:
     stopped_comps = [c for c in components_list if c.get("state") == "stopped"]
     warning_comps = [c for c in components_list if c.get("state") == "warning"]
 
+    # تقييم الحالة العامة
     criticals = [c for c in components_list if c.get("status") == "critical"]
 
     if criticals:
@@ -742,7 +689,6 @@ def get_full_monitoring_report() -> Dict[str, Any]:
             "streaming_engine": streaming_info,
             "cloudflare_worker": cloudflare_info,
             "security_engine": security_info,
-            "ttl_cache": ttl_cache_info,
-            "extraction_stats": extraction_stats_info
+            "ttl_cache": ttl_cache_info
         }
     }

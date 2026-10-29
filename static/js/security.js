@@ -23,10 +23,6 @@ async function loadSecuritySettings() {
         if (apiKeyEl) {
             apiKeyEl.textContent = data.api_key || 'غير متوفر';
         }
-        const laravelEnvEl = document.getElementById('laravelEnvApiKeyCode');
-        if (laravelEnvEl) {
-            laravelEnvEl.textContent = `YTDLP_API_KEY=${data.api_key || '--'}`;
-        }
 
         // 4. Update Advanced Settings
         const forceIpv6Toggle = document.getElementById('forceIpv6Toggle');
@@ -40,19 +36,6 @@ async function loadSecuritySettings() {
         
         const visitorDataInput = document.getElementById('visitorDataInput');
         if (visitorDataInput) visitorDataInput.value = data.visitor_data || '';
-
-        // 5. Update Alerts Settings
-        const alertsEnabledToggle = document.getElementById('alertsEnabledToggle');
-        if (alertsEnabledToggle) alertsEnabledToggle.checked = data.alerts_enabled !== false;
-
-        const tgTokenInput = document.getElementById('telegramBotTokenInput');
-        if (tgTokenInput) tgTokenInput.value = data.telegram_bot_token || '';
-
-        const tgChatInput = document.getElementById('telegramChatIdInput');
-        if (tgChatInput) tgChatInput.value = data.telegram_chat_id || '';
-
-        const webhookInput = document.getElementById('webhookUrlInput');
-        if (webhookInput) webhookInput.value = data.webhook_url || '';
 
         renderDomainChips(domains);
         
@@ -295,10 +278,6 @@ async function handleToggleAdvancedSettings() {
     const isUseOauth2 = document.getElementById('useOauth2Toggle') ? document.getElementById('useOauth2Toggle').checked : false;
     const poToken = document.getElementById('poTokenInput') ? document.getElementById('poTokenInput').value.trim() : '';
     const visitorData = document.getElementById('visitorDataInput') ? document.getElementById('visitorDataInput').value.trim() : '';
-    const alertsEnabled = document.getElementById('alertsEnabledToggle') ? document.getElementById('alertsEnabledToggle').checked : true;
-    const tgToken = document.getElementById('telegramBotTokenInput') ? document.getElementById('telegramBotTokenInput').value.trim() : '';
-    const tgChatId = document.getElementById('telegramChatIdInput') ? document.getElementById('telegramChatIdInput').value.trim() : '';
-    const webhookUrl = document.getElementById('webhookUrlInput') ? document.getElementById('webhookUrlInput').value.trim() : '';
 
     try {
         const res = await apiFetch('/api/security/settings', {
@@ -309,11 +288,7 @@ async function handleToggleAdvancedSettings() {
                 force_ipv6: isForceIpv6,
                 use_oauth2: isUseOauth2,
                 po_token: poToken,
-                visitor_data: visitorData,
-                alerts_enabled: alertsEnabled,
-                telegram_bot_token: tgToken,
-                telegram_chat_id: tgChatId,
-                webhook_url: webhookUrl
+                visitor_data: visitorData
             })
         });
         const data = await res.json();
@@ -331,58 +306,6 @@ async function handleToggleAdvancedSettings() {
 
 async function handleSaveAdvancedSettings() {
     await handleToggleAdvancedSettings();
-}
-
-async function handleAutoGeneratePoToken() {
-    const btn = document.getElementById('btnAutoGeneratePoToken');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span>⏳ جاري الاستخراج...</span>';
-    }
-    showToast('جاري تشغيل متصفح Chromium الخفي لاستخراج PO Token و Visitor Data...');
-
-    try {
-        const res = await apiFetch('/api/security/po-token/generate', { method: 'POST' });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            showToast(data.message || 'تم استخراج وحفظ التوكنات بنجاح!');
-            const poInput = document.getElementById('poTokenInput');
-            const vdInput = document.getElementById('visitorDataInput');
-            if (poInput && data.po_token) poInput.value = data.po_token;
-            if (vdInput && data.visitor_data) vdInput.value = data.visitor_data;
-            loadSecuritySettings();
-        } else {
-            showToast(data.detail || data.message || 'تعذر التوليد التلقائي.', 'error');
-        }
-    } catch (e) {
-        showToast('تعذر الاتصال بالخادم لتوليد التوكن.', 'error');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<span>⚡ توليد تلقائي (Auto Extract)</span>';
-        }
-    }
-}
-
-async function handleTestAlert() {
-    const btn = document.getElementById('btnTestAlert');
-    if (btn) btn.disabled = true;
-    // Save current inputs first so the test uses the latest values
-    await handleToggleAdvancedSettings();
-
-    try {
-        const res = await apiFetch('/api/security/alerts/test', { method: 'POST' });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            showToast(data.message || 'تم إرسال التنبيه التجريبي بنجاح!');
-        } else {
-            showToast(data.detail || 'فشل إرسال التنبيه التجريبي.', 'error');
-        }
-    } catch (e) {
-        showToast('تعذر الاتصال بالخادم لإرسال التنبيه.', 'error');
-    } finally {
-        if (btn) btn.disabled = false;
-    }
 }
 
 async function copyApiKey() {
@@ -509,11 +432,8 @@ window.handleRemoveDomain = handleRemoveDomain;
 window.handleAddWorker = handleAddWorker;
 window.handleRemoveWorker = handleRemoveWorker;
 window.handleCopyAllWorkers = handleCopyAllWorkers;
-window.handleClearAllWorkers = handleClearAllWorkers;
 window.handleToggleAdvancedSettings = handleToggleAdvancedSettings;
 window.handleSaveAdvancedSettings = handleSaveAdvancedSettings;
-window.handleAutoGeneratePoToken = handleAutoGeneratePoToken;
-window.handleTestAlert = handleTestAlert;
 window.copyApiKey = copyApiKey;
 window.handleRegenerateApiKey = handleRegenerateApiKey;
 window.handleTestDomain = handleTestDomain;

@@ -121,11 +121,6 @@ async function loadOverview() {
         // 6. Update Resources in Overview
         if (data.resources) {
             updateResourcesUI(data.resources);
-            if (window.TelemetryCharts) {
-                const cpu = data.resources.cpu ? data.resources.cpu.percent : (data.resources.cpu_percent || 0);
-                const ram = data.resources.ram ? data.resources.ram.percent : (data.resources.ram_percent || 0);
-                window.TelemetryCharts.pushData(cpu, ram);
-            }
         }
 
         // 7. Render Components Health Matrix
@@ -133,11 +128,6 @@ async function loadOverview() {
 
         // 8. Update TTLCache Status Badge & Info
         await loadCacheStatus();
-
-        // 9. Update Extraction Stats Highlights
-        if (window.loadAnalyticsData) {
-            loadAnalyticsData(true);
-        }
 
     } catch (err) {
         console.error('Failed to load overview:', err);

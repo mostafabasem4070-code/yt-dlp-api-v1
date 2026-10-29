@@ -38,13 +38,9 @@ function switchNavTab(tabId, tabTitle, navBtn) {
     // 5. تحميل بيانات التبويب المحدد
     if (tabId === 'tab-overview') {
         if (window.loadOverview) loadOverview();
-    } else if (tabId === 'tab-analytics') {
-        if (window.loadAnalyticsData) loadAnalyticsData();
     } else if (tabId === 'tab-resources') {
         if (window.fetchServerResources) fetchServerResources(false);
-        setTimeout(() => {
-            if (window.TelemetryCharts) window.TelemetryCharts.redraw();
-        }, 60);
+        if (window.TelemetryCharts) window.TelemetryCharts.redraw();
     } else if (tabId === 'tab-components') {
         if (window.loadOverview) loadOverview();
     } else if (tabId === 'tab-security') {
@@ -73,18 +69,15 @@ function closeMobileSidebar() {
 
 function initDashboardData() {
     if (window.loadOverview) loadOverview();
-    if (window.loadAnalyticsData) loadAnalyticsData();
     if (window.loadSecuritySettings) loadSecuritySettings();
     if (window.loadCookieStatus) loadCookieStatus();
     if (window.startTelemetryPolling) startTelemetryPolling();
     if (window.startLogsPolling) startLogsPolling();
-    if (window.startAnalyticsAutoRefresh) startAnalyticsAutoRefresh();
 }
 
 function stopLiveTimers() {
     if (window.stopTelemetryPolling) stopTelemetryPolling();
     if (window.stopLogsPolling) stopLogsPolling();
-    if (window.stopAnalyticsAutoRefresh) stopAnalyticsAutoRefresh();
 }
 
 window.switchNavTab = switchNavTab;

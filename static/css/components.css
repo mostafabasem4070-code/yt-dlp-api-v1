@@ -663,35 +663,3 @@
     }
 }
 
-/* ==================== RANK BADGES FOR TOP VIDEOS ==================== */
-.rank-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-full);
-    font-weight: 800;
-    font-size: 0.82rem;
-    font-family: var(--font-mono);
-}
-.rank-badge.rank-1 {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: #ffffff;
-    box-shadow: 0 3px 8px rgba(245, 158, 11, 0.4);
-}
-.rank-badge.rank-2 {
-    background: linear-gradient(135deg, #94a3b8, #64748b);
-    color: #ffffff;
-}
-.rank-badge.rank-3 {
-    background: linear-gradient(135deg, #b45309, #78350f);
-    color: #ffffff;
-}
-.rank-badge.rank-other {
-    background: var(--bg-surface);
-    color: var(--text-muted);
-    border: 1px solid var(--border-subtle);
-}
-
-

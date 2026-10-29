@@ -25,103 +25,8 @@ async function loadCookieStatus() {
         // جدول الكوكيز التفصيلي
         renderCookiesTable(data.items || []);
 
-        // جدول مسبح حسابات الكوكيز المتعددة (Cookie Pool)
-        if (data.pool) {
-            renderCookiePool(data.pool);
-        }
-
     } catch (err) {
         console.error('Failed to load cookie status:', err);
-    }
-}
-
-function renderCookiePool(poolData) {
-    const badge = document.getElementById('cookiePoolSummaryBadge');
-    const tbody = document.getElementById('cookiePoolTableBody');
-    if (!tbody) return;
-
-    const accounts = Array.isArray(poolData) ? poolData : ((poolData && poolData.accounts) ? poolData.accounts : []);
-    const total = poolData?.total_accounts ?? accounts.length ?? 0;
-    const healthyCount = poolData?.healthy_accounts ?? accounts.filter(a => a.enabled !== false && !a.is_expired).length;
-
-    if (badge) {
-        badge.textContent = `${healthyCount} نشط / ${total} حساب`;
-    }
-
-    tbody.innerHTML = '';
-    if (accounts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">لا توجد حسابات مسجلة في مسبح التدوير حالياً.</td></tr>';
-        return;
-    }
-
-    accounts.forEach(acc => {
-        const tr = document.createElement('tr');
-        let statusHtml = '<span class="comp-badge healthy">نشط للتدوير</span>';
-        if (acc.is_expired) {
-            statusHtml = '<span class="comp-badge critical">منتهي</span>';
-        } else if (acc.enabled === false) {
-            statusHtml = '<span class="comp-badge warning">معطل مؤقتاً (أخطاء)</span>';
-        }
-
-        const expText = acc.expiry_countdown || acc.earliest_expiry_readable || 'غير محدد';
-        const uses = acc.uses_count ?? acc.use_count ?? 0;
-        tr.innerHTML = `
-            <td>
-                <strong style="color:var(--text-main);">${acc.label || acc.id}</strong>
-                <div style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono);">ID: ${acc.id}</div>
-            </td>
-            <td style="font-family:var(--font-mono);">${acc.cookies_count || 0} كوكي</td>
-            <td style="font-family:var(--font-mono); font-size:0.82rem;">
-                <span style="color:var(--success);">${uses} نجاح</span> • 
-                <span style="color:var(--danger);">${acc.fail_count || 0} فشل</span>
-            </td>
-            <td style="font-family:var(--font-mono); font-size:0.82rem;">${expText}</td>
-            <td>${statusHtml}</td>
-            <td style="text-align:left;">
-                <div style="display:inline-flex; gap:6px;">
-                    <button class="btn-action light-primary" style="padding:4px 10px; font-size:0.76rem;" onclick="handleActivatePoolCookie('${acc.id}')">تفعيل رئيسي</button>
-                    <button class="btn-action danger" style="padding:4px 10px; font-size:0.76rem;" onclick="handleDeletePoolCookie('${acc.id}')">حذف</button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-async function handleActivatePoolCookie(cookieId) {
-    try {
-        const res = await apiFetch(`/api/cookies/pool/${encodeURIComponent(cookieId)}/activate`, {
-            method: 'POST'
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            showToast(data.message || 'تم تفعيل الحساب بنجاح.');
-            loadCookieStatus();
-            if (window.loadOverview) loadOverview();
-        } else {
-            showToast(data.detail || 'فشل تفعيل الحساب.', 'error');
-        }
-    } catch (e) {
-        showToast('تعذر الاتصال بالخادم.', 'error');
-    }
-}
-
-async function handleDeletePoolCookie(cookieId) {
-    if (!confirm('هل تريد حذف هذا الحساب من مسبح التدوير؟')) return;
-    try {
-        const res = await apiFetch(`/api/cookies/pool/${encodeURIComponent(cookieId)}`, {
-            method: 'DELETE'
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-            showToast(data.message || 'تم حذف الحساب من المسبح.');
-            loadCookieStatus();
-            if (window.loadOverview) loadOverview();
-        } else {
-            showToast(data.detail || 'فشل حذف الحساب.', 'error');
-        }
-    } catch (e) {
-        showToast('تعذر الاتصال بالخادم.', 'error');
     }
 }
 
@@ -224,9 +129,7 @@ function renderCookiesTable(items) {
 
 async function handleSaveCookies() {
     const input = document.getElementById('cookiesTextInput');
-    const labelInput = document.getElementById('cookieLabelInput');
     const text = input.value.trim();
-    const label = labelInput ? labelInput.value.trim() : '';
     const testImm = document.getElementById('testImmediatelyCheck')?.checked || false;
     const btn = document.getElementById('btnSaveCookies');
 
@@ -242,18 +145,13 @@ async function handleSaveCookies() {
         const res = await apiFetch('/api/cookies/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                cookies_text: text,
-                test_immediately: testImm,
-                label: label || null
-            })
+            body: JSON.stringify({ cookies_text: text, test_immediately: testImm })
         });
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {
             showToast(data.message);
             input.value = '';
-            if (labelInput) labelInput.value = '';
             loadCookieStatus();
             if (window.loadOverview) loadOverview();
 
@@ -273,7 +171,7 @@ async function handleSaveCookies() {
         btn.disabled = false;
         btn.innerHTML = `
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span>حفظ وتفعيل الكوكيز فوراً (+ إضافة للمسبح)</span>
+            <span>حفظ وتفعيل الكوكيز فوراً</span>
         `;
     }
 }
@@ -299,5 +197,3 @@ async function clearCookiesConfirm() {
 window.loadCookieStatus = loadCookieStatus;
 window.handleSaveCookies = handleSaveCookies;
 window.clearCookiesConfirm = clearCookiesConfirm;
-window.handleActivatePoolCookie = handleActivatePoolCookie;
-window.handleDeletePoolCookie = handleDeletePoolCookie;

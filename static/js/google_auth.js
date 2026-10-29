@@ -1,16 +1,10 @@
 /* ==========================================================================
-   GOOGLE AUTH & INTERACTIVE REMOTE BROWSER CONTROLLER (ENHANCED UX)
+   GOOGLE AUTH & INTERACTIVE REMOTE BROWSER CONTROLLER
    YouTube API Hub - Cloud Control Center
    ========================================================================== */
 
 let _remoteStreamTimer = null;
 let _isActionPending = false;
-let _isScreenshotFetching = false;
-let _isBrowserFullscreen = false;
-let _directTypeBuffer = '';
-let _directTypeFlushTimer = null;
-let _wheelThrottleTimer = null;
-let _pendingWheelDeltaY = 0;
 
 // ===== التحقق من حالة Playwright وخدمة المصادقة =====
 async function loadGoogleAuthStatus() {
@@ -127,7 +121,7 @@ async function startGoogleLogin() {
         if (res.ok && data.success) {
             openRemoteBrowserModal();
             startRemoteBrowserStream();
-            showToast('تم فتح المتصفح. يمكنك التحكم المباشر بالماوس والكيبورد الآن!', 'success');
+            showToast('تم فتح المتصفح. يمكنك تسجيل الدخول الآن عبر النافذة.', 'success');
         } else {
             showToast(data.message || 'فشل بدء الجلسة', 'error');
             loadGoogleAuthStatus();
@@ -143,15 +137,11 @@ function openRemoteBrowserModal() {
     const modal = document.getElementById('remoteBrowserModal');
     if (modal) {
         modal.style.display = 'flex';
-        const img = document.getElementById('remoteBrowserImg');
-        if (!img || !img.getAttribute('src')) {
-            setBrowserSpinner(true, 'جاري تحميل شاشة المتصفح...');
-        }
-        bindDirectBrowserEvents();
+        setBrowserSpinner(true, 'جاري تحميل شاشة المتصفح...');
         setTimeout(() => {
             const input = document.getElementById('browserTypeInput');
             if (input) input.focus();
-        }, 300);
+        }, 400);
     }
 }
 
@@ -160,26 +150,6 @@ function closeRemoteBrowserModal() {
     if (modal) modal.style.display = 'none';
     stopRemoteBrowserStream();
     cancelGoogleLogin();
-}
-
-function toggleRemoteBrowserFullscreen() {
-    const container = document.getElementById('remoteBrowserContainer');
-    const wrapper = document.getElementById('remoteBrowserScreenWrapper');
-    const btn = document.getElementById('btnToggleBrowserFullscreen');
-    if (!container || !wrapper) return;
-
-    _isBrowserFullscreen = !_isBrowserFullscreen;
-    if (_isBrowserFullscreen) {
-        container.style.maxWidth = '98vw';
-        container.style.maxHeight = '98vh';
-        wrapper.style.maxHeight = '78vh';
-        if (btn) btn.innerHTML = '🗗 <span>تصغير</span>';
-    } else {
-        container.style.maxWidth = '1180px';
-        container.style.maxHeight = '96vh';
-        wrapper.style.maxHeight = '66vh';
-        if (btn) btn.innerHTML = '⛶ <span>تكبير</span>';
-    }
 }
 
 function setBrowserSpinner(visible, text = 'جاري المعالجة...') {
@@ -191,23 +161,13 @@ function setBrowserSpinner(visible, text = 'جاري المعالجة...') {
     }
 }
 
-function setBrowserActionBusy(busy, text = '⚡ جاري التنفيذ...') {
-    const ind = document.getElementById('remoteBrowserActionIndicator');
-    if (!ind) return;
-    if (busy) {
-        ind.textContent = text;
-        ind.style.display = 'inline-block';
-    } else {
-        ind.style.display = 'none';
-    }
-}
-
-// ===== نظام البث الحي السريع وتحديث لقطة الشاشة =====
+// ===== نظام البث الحي وتحديث لقطة الشاشة =====
 function startRemoteBrowserStream() {
     stopRemoteBrowserStream();
+    // التقاط فوري
     fetchRemoteScreenshot();
-    // بث سلس كل 500 ملي ثانية مع منع تداخل الطلبات
-    _remoteStreamTimer = setInterval(fetchRemoteScreenshot, 500);
+    // تكرار البث كل 900 ملي ثانية
+    _remoteStreamTimer = setInterval(fetchRemoteScreenshot, 900);
 }
 
 function stopRemoteBrowserStream() {
@@ -218,8 +178,7 @@ function stopRemoteBrowserStream() {
 }
 
 async function fetchRemoteScreenshot() {
-    if (_isActionPending || _isScreenshotFetching) return;
-    _isScreenshotFetching = true;
+    if (_isActionPending) return;
 
     try {
         const res = await apiFetch('/api/auth/google/screenshot');
@@ -231,29 +190,17 @@ async function fetchRemoteScreenshot() {
                 handleLoginSuccessful();
                 return;
             }
-            if (data.status === 'error' || data.status === 'timeout') {
-                stopRemoteBrowserStream();
-                const errMsg = data.error || data.message || 'حدث خطأ أثناء تشغيل المتصفح.';
-                setBrowserSpinner(true, `❌ ${errMsg}`);
-                if (typeof showToast === 'function') showToast(errMsg, 'error');
-                loadGoogleAuthStatus();
-                return;
-            }
-            if (data.message && (data.status === 'running' || data.status === 'waiting_login')) {
-                setBrowserSpinner(true, data.message);
-            }
             return;
         }
 
         updateRemoteBrowserView(data);
 
+        // التحقق من حالة الجلسة
         if (data.status === 'done') {
             handleLoginSuccessful();
         }
     } catch (e) {
         console.debug('Screenshot fetch error:', e);
-    } finally {
-        _isScreenshotFetching = false;
     }
 }
 
@@ -265,8 +212,8 @@ function updateRemoteBrowserView(data) {
     }
 
     const urlBar = document.getElementById('remoteBrowserUrlBar');
-    if (urlBar && data.url && document.activeElement !== urlBar) {
-        urlBar.value = data.url;
+    if (urlBar && data.url) {
+        urlBar.textContent = data.url;
         urlBar.title = data.url;
     }
 
@@ -290,7 +237,6 @@ function updateRemoteBrowserView(data) {
 function handleLoginSuccessful() {
     stopRemoteBrowserStream();
     setBrowserSpinner(false);
-    setBrowserActionBusy(false);
     showToast('🎉 تم تسجيل الدخول واستخراج الكوكيز وحفظها بنجاح!', 'success');
 
     const statusBadge = document.getElementById('remoteBrowserStatusBadge');
@@ -299,190 +245,31 @@ function handleLoginSuccessful() {
         statusBadge.className = 'comp-badge green';
     }
 
+    // إغلاق النافذة تلقائياً بعد ثانيتين وتحديث حالة الكوكيز
     setTimeout(() => {
         const modal = document.getElementById('remoteBrowserModal');
         if (modal) modal.style.display = 'none';
         if (window.loadCookieStatus) loadCookieStatus();
-        if (window.loadOverview) loadOverview();
         loadGoogleAuthStatus();
-    }, 1800);
+    }, 2000);
 }
 
-// ===== تفعيل التركيز والكتابة المباشرة من الكيبورد والماوس على الشاشة =====
-function focusBrowserScreen() {
-    const wrapper = document.getElementById('remoteBrowserScreenWrapper');
-    if (wrapper) wrapper.focus();
-}
-
-function onBrowserScreenFocus(focused) {
-    const badge = document.getElementById('directKeyboardBadge');
-    const wrapper = document.getElementById('remoteBrowserScreenWrapper');
-    if (!badge || !wrapper) return;
-    if (focused) {
-        badge.innerHTML = '🟢 <strong>الكتابة المباشرة مفعّلة:</strong> اكتب من الكيبورد الآن أو الصق بـ Ctrl+V';
-        badge.style.background = 'rgba(16,185,129,0.88)';
-        badge.style.color = '#ffffff';
-        badge.style.borderColor = 'rgba(255,255,255,0.35)';
-        wrapper.style.boxShadow = 'inset 0 0 0 2px #10b981';
-    } else {
-        badge.innerHTML = '🖱️ انقر داخل الشاشة للكتابة المباشرة من الكيبورد أو التمرير بعجلة الماوس';
-        badge.style.background = 'rgba(15,23,42,0.78)';
-        badge.style.color = '#cbd5e1';
-        badge.style.borderColor = 'rgba(255,255,255,0.15)';
-        wrapper.style.boxShadow = 'none';
-    }
-}
-
-let _eventsBound = false;
-function bindDirectBrowserEvents() {
-    if (_eventsBound) return;
-    const wrapper = document.getElementById('remoteBrowserScreenWrapper');
-    if (!wrapper) return;
-    _eventsBound = true;
-
-    // 1. الكتابة المباشرة من الكيبورد عند التركيز على شاشة المتصفح
-    wrapper.addEventListener('keydown', (e) => {
-        // السماح باختصار اللصق Ctrl+V ليتم التقاطه في حدث paste
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-            return;
-        }
-        // اختصار تحديد الكل Ctrl+A
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-            e.preventDefault();
-            sendBrowserKey('Control+a');
-            return;
-        }
-
-        const specialKeys = {
-            Enter: 'Enter',
-            Backspace: 'Backspace',
-            Tab: 'Tab',
-            Escape: 'Escape',
-            Delete: 'Delete',
-            ArrowUp: 'ArrowUp',
-            ArrowDown: 'ArrowDown',
-            ArrowLeft: 'ArrowLeft',
-            ArrowRight: 'ArrowRight'
-        };
-
-        if (specialKeys[e.key]) {
-            e.preventDefault();
-            flushDirectTypeBuffer().then(() => sendBrowserKey(specialKeys[e.key]));
-            return;
-        }
-
-        // حرف قابل للطباعة (إنجليزي/عربي/رموز/أرقام)
-        if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            queueDirectTypedChar(e.key);
-        }
-    });
-
-    // 2. دعم اللصق المباشر Ctrl+V داخل شاشة المتصفح
-    wrapper.addEventListener('paste', (e) => {
-        const pasted = (e.clipboardData || window.clipboardData).getData('text');
-        if (pasted) {
-            e.preventDefault();
-            sendDirectTextChunk(pasted, false);
-        }
-    });
-
-    // 3. دعم التمرير بعجلة الماوس (Mouse Wheel)
-    wrapper.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        _pendingWheelDeltaY += Math.round(e.deltaY);
-        if (_wheelThrottleTimer) return;
-        _wheelThrottleTimer = setTimeout(() => {
-            const dy = _pendingWheelDeltaY;
-            _pendingWheelDeltaY = 0;
-            _wheelThrottleTimer = null;
-            if (Math.abs(dy) > 5) {
-                scrollRemoteBrowser(dy);
-            }
-        }, 140);
-    }, { passive: false });
-}
-
-function queueDirectTypedChar(ch) {
-    _directTypeBuffer += ch;
-    if (_directTypeFlushTimer) clearTimeout(_directTypeFlushTimer);
-    _directTypeFlushTimer = setTimeout(() => {
-        flushDirectTypeBuffer();
-    }, 110);
-}
-
-async function flushDirectTypeBuffer() {
-    if (_directTypeFlushTimer) {
-        clearTimeout(_directTypeFlushTimer);
-        _directTypeFlushTimer = null;
-    }
-    if (!_directTypeBuffer) return;
-    const chunk = _directTypeBuffer;
-    _directTypeBuffer = '';
-    await sendDirectTextChunk(chunk, false);
-}
-
-async function sendDirectTextChunk(text, pressEnter = false) {
-    if (!text && !pressEnter) return;
-    _isActionPending = true;
-    setBrowserActionBusy(true, '⌨️ جاري الكتابة...');
-    try {
-        const res = await apiFetch('/api/auth/google/type', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, enter: pressEnter, clear_first: false, smart_focus: false })
-        });
-        const data = await res.json();
-        if (data.success) {
-            updateRemoteBrowserView(data);
-        }
-    } catch (err) {
-        console.error('Direct type error:', err);
-    } finally {
-        _isActionPending = false;
-        setBrowserActionBusy(false);
-    }
-}
-
-// ===== النقر بالماوس مع مؤشر نبضي مرئي بدون تجميد الشاشة =====
-function showClickRipple(offsetX, offsetY) {
-    const ripple = document.getElementById('remoteBrowserClickRipple');
-    if (!ripple) return;
-    ripple.style.left = `${offsetX}px`;
-    ripple.style.top = `${offsetY}px`;
-    ripple.style.display = 'block';
-    ripple.style.opacity = '1';
-    ripple.style.transform = 'scale(0.5)';
-    requestAnimationFrame(() => {
-        ripple.style.transform = 'scale(1.6)';
-        ripple.style.opacity = '0';
-    });
-    setTimeout(() => {
-        ripple.style.display = 'none';
-    }, 360);
-}
-
+// ===== النقر والتفاعل بالماوس =====
 async function handleBrowserScreenClick(e) {
     const img = document.getElementById('remoteBrowserImg');
     if (!img) return;
 
-    focusBrowserScreen();
-
     const rect = img.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-
-    const clickOffsetX = e.clientX - rect.left;
-    const clickOffsetY = e.clientY - rect.top;
-    showClickRipple(clickOffsetX, clickOffsetY);
 
     // حساب الإحداثيات بالنسبة لحجم الصفحة الافتراضي (1280x800)
     const scaleX = 1280 / rect.width;
     const scaleY = 800 / rect.height;
-    const x = Math.round(clickOffsetX * scaleX);
-    const y = Math.round(clickOffsetY * scaleY);
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
 
     _isActionPending = true;
-    setBrowserActionBusy(true, '🖱️ نقر...');
+    setBrowserSpinner(true, 'جاري النقر...');
 
     try {
         const res = await apiFetch('/api/auth/google/click', {
@@ -498,52 +285,25 @@ async function handleBrowserScreenClick(e) {
         console.error('Click error:', err);
     } finally {
         _isActionPending = false;
-        setBrowserActionBusy(false);
+        setBrowserSpinner(false);
     }
 }
 
-// ===== التمرير لأعلى ولأسفل =====
-async function scrollRemoteBrowser(deltaY = 300) {
-    _isActionPending = true;
-    setBrowserActionBusy(true, '↕️ تمرير...');
-    try {
-        const res = await apiFetch('/api/auth/google/scroll', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ delta_x: 0, delta_y: deltaY })
-        });
-        const data = await res.json();
-        if (data.success) {
-            updateRemoteBrowserView(data);
-        }
-    } catch (err) {
-        console.error('Scroll error:', err);
-    } finally {
-        _isActionPending = false;
-        setBrowserActionBusy(false);
-    }
-}
-
-// ===== التعبئة الذكية وإرسال النص من الشريط السفلي =====
-async function sendBrowserTypedText(pressEnter = false, smartFocus = true) {
+// ===== الكتابة وإرسال المفاتيح =====
+async function sendBrowserTypedText(pressEnter = false) {
     const input = document.getElementById('browserTypeInput');
     if (!input) return;
     const text = input.value;
     if (!text && !pressEnter) return;
 
     _isActionPending = true;
-    setBrowserActionBusy(true, '⚡ جاري التعبئة والإرسال...');
+    setBrowserSpinner(true, 'جاري الكتابة...');
 
     try {
         const res = await apiFetch('/api/auth/google/type', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text,
-                enter: pressEnter,
-                clear_first: false,
-                smart_focus: smartFocus
-            })
+            body: JSON.stringify({ text, enter: pressEnter })
         });
         const data = await res.json();
         if (data.success) {
@@ -554,36 +314,13 @@ async function sendBrowserTypedText(pressEnter = false, smartFocus = true) {
         console.error('Type error:', err);
     } finally {
         _isActionPending = false;
-        setBrowserActionBusy(false);
-    }
-}
-
-function toggleBrowserInputSecret() {
-    const input = document.getElementById('browserTypeInput');
-    if (!input) return;
-    input.type = input.type === 'password' ? 'text' : 'password';
-}
-
-async function clearRemoteBrowserInput() {
-    _isActionPending = true;
-    setBrowserActionBusy(true, '🧹 جاري مسح الحقل...');
-    try {
-        const res = await apiFetch('/api/auth/google/clear-input', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            updateRemoteBrowserView(data);
-        }
-    } catch (err) {
-        console.error('Clear input error:', err);
-    } finally {
-        _isActionPending = false;
-        setBrowserActionBusy(false);
+        setBrowserSpinner(false);
     }
 }
 
 async function sendBrowserKey(key) {
     _isActionPending = true;
-    setBrowserActionBusy(true, `⌨️ ${key}...`);
+    setBrowserSpinner(true, `ضغط ${key}...`);
 
     try {
         const res = await apiFetch('/api/auth/google/key', {
@@ -599,34 +336,13 @@ async function sendBrowserKey(key) {
         console.error('Key error:', err);
     } finally {
         _isActionPending = false;
-        setBrowserActionBusy(false);
-    }
-}
-
-async function browserHistoryNav(direction = 'back') {
-    _isActionPending = true;
-    setBrowserActionBusy(true, direction === 'back' ? '← رجوع...' : '→ تقدم...');
-    try {
-        const res = await apiFetch('/api/auth/google/history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ direction })
-        });
-        const data = await res.json();
-        if (data.success) {
-            updateRemoteBrowserView(data);
-        }
-    } catch (err) {
-        console.error('History nav error:', err);
-    } finally {
-        _isActionPending = false;
-        setBrowserActionBusy(false);
+        setBrowserSpinner(false);
     }
 }
 
 async function reloadRemoteBrowser() {
     _isActionPending = true;
-    setBrowserActionBusy(true, '🔄 تحديث الصفحة...');
+    setBrowserSpinner(true, 'إعادة تحميل الصفحة...');
 
     try {
         const res = await apiFetch('/api/auth/google/reload', { method: 'POST' });
@@ -638,7 +354,7 @@ async function reloadRemoteBrowser() {
         console.error('Reload error:', err);
     } finally {
         _isActionPending = false;
-        setBrowserActionBusy(false);
+        setBrowserSpinner(false);
     }
 }
 
@@ -674,20 +390,14 @@ async function cancelGoogleLogin() {
 }
 
 async function navigateRemoteBrowser(url) {
-    if (!url) return;
-    let targetUrl = url.trim();
-    if (!/^https?:\/\//i.test(targetUrl)) {
-        targetUrl = 'https://' + targetUrl;
-    }
-
     _isActionPending = true;
-    setBrowserActionBusy(true, '🌐 جاري الانتقال للرابط...');
+    setBrowserSpinner(true, 'جاري الانتقال للرابط...');
 
     try {
         const res = await apiFetch('/api/auth/google/navigate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: targetUrl })
+            body: JSON.stringify({ url })
         });
         const data = await res.json();
         if (data.success) {
@@ -697,7 +407,7 @@ async function navigateRemoteBrowser(url) {
         console.error('Navigate error:', err);
     } finally {
         _isActionPending = false;
-        setBrowserActionBusy(false);
+        setBrowserSpinner(false);
     }
 }
 
@@ -707,16 +417,9 @@ window.startGoogleLogin = startGoogleLogin;
 window.cancelGoogleLogin = cancelGoogleLogin;
 window.openRemoteBrowserModal = openRemoteBrowserModal;
 window.closeRemoteBrowserModal = closeRemoteBrowserModal;
-window.toggleRemoteBrowserFullscreen = toggleRemoteBrowserFullscreen;
-window.focusBrowserScreen = focusBrowserScreen;
-window.onBrowserScreenFocus = onBrowserScreenFocus;
 window.handleBrowserScreenClick = handleBrowserScreenClick;
-window.scrollRemoteBrowser = scrollRemoteBrowser;
 window.sendBrowserTypedText = sendBrowserTypedText;
-window.toggleBrowserInputSecret = toggleBrowserInputSecret;
-window.clearRemoteBrowserInput = clearRemoteBrowserInput;
 window.sendBrowserKey = sendBrowserKey;
-window.browserHistoryNav = browserHistoryNav;
 window.reloadRemoteBrowser = reloadRemoteBrowser;
 window.navigateRemoteBrowser = navigateRemoteBrowser;
 window.extractCookiesNow = extractCookiesNow;

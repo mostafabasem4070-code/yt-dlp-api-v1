@@ -1,6 +1,5 @@
 import os
 import sys
-import copy
 import shutil
 import logging
 import asyncio
@@ -19,20 +18,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from cachetools import TTLCache
 
-
-def get_real_client_ip(request: Request) -> str:
-    """استخراج الـ IP الحقيقي للعميل خلف البروكسي العكسي (Cloudflare / Nginx / Railway)."""
-    return (
-        request.headers.get("cf-connecting-ip")
-        or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        or request.headers.get("x-real-ip")
-        or get_remote_address(request)
-    )
-
-
-limiter = Limiter(key_func=get_real_client_ip)
+limiter = Limiter(key_func=get_remote_address)
 extraction_cache = TTLCache(maxsize=500, ttl=3600)  # 1 hour cache
-_EXTRACTION_LOCKS: dict[str, asyncio.Lock] = {}
 
 from log_manager import get_recent_logs, clear_logs, setup_logging_capture
 from youtube_service import extract_youtube_info, get_cookie_file_path, test_cookie_health_live, check_ipv6_support
@@ -41,10 +28,6 @@ from stream_service import (
     parse_range_header,
     stream_chunked_response,
     build_proxy_url,
-    build_mux_proxy_url,
-    stream_muxed_ffmpeg,
-    validate_stream_url,
-    close_shared_http_client,
     DEFAULT_CHUNK_SIZE,
     clear_stream_metadata_cache,
     get_stream_metadata_cache_size
@@ -54,10 +37,7 @@ from cookie_manager import (
     analyze_cookies_health,
     save_cookies_content,
     clear_cookies_file,
-    get_active_cookie_path,
-    get_cookie_pool_summary,
-    remove_cookie_from_pool,
-    activate_pool_cookie
+    get_active_cookie_path
 )
 from updater_service import (
     get_updater_status,
@@ -80,9 +60,7 @@ from security_manager import (
     is_request_authorized,
     add_worker_url,
     remove_worker_url,
-    clear_all_worker_urls,
-    get_all_worker_urls,
-    send_system_alert
+    clear_all_worker_urls
 )
 from google_auth_service import (
     start_google_login_session,
@@ -91,21 +69,11 @@ from google_auth_service import (
     get_playwright_status,
     capture_browser_screenshot,
     browser_mouse_click,
-    browser_mouse_scroll,
     browser_keyboard_type,
     browser_keyboard_key,
-    browser_clear_active_input,
-    browser_history_nav,
     browser_reload_page,
     browser_navigate_to,
-    browser_manual_extract,
-    auto_generate_po_token_and_visitor_data
-)
-import time
-from stats_manager import (
-    record_extraction,
-    get_extraction_summary_metrics,
-    clear_extraction_stats
+    browser_manual_extract
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -132,7 +100,6 @@ async def lifespan(app: FastAPI):
     yield
     if _updater_task_ref and not _updater_task_ref.done():
         _updater_task_ref.cancel()
-    await close_shared_http_client()
     logger.info("Server shutting down.")
 
 
@@ -140,7 +107,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="YouTube Direct Links Extractor & Cookie Hub API",
     description="API متطور لاستخراج الروابط المباشرة المؤقتة لجميع جودات فيديو اليوتيوب مع إدارة شاملة لكوكيز الدخول، مركز مراقبة حي، وتحديثات تلقائية لمكتبة yt-dlp وحماية أمنية للدومينات ولوحة التحكم.",
-    version="1.6.0",
+    version="1.5.0",
     lifespan=lifespan
 )
 
@@ -174,18 +141,14 @@ def get_auth_token_from_request(request: Request) -> Optional[str]:
 
 
 def require_admin(request: Request):
-    """التحقق الإجباري من جلسة المشرف أو مفتاح الـ API الصالح قبل تنفيذ العمليات الحساسة"""
+    """التحقق الإجباري من جلسة المشرف قبل تنفيذ العمليات الحساسة"""
     token = get_auth_token_from_request(request)
-    if validate_session_token(token):
-        return True
-    api_key = (request.headers.get("x-api-key") or request.query_params.get("api_key") or "").strip()
-    sec_key = get_security_settings().get("api_key", "")
-    if api_key and sec_key and api_key == sec_key:
-        return True
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="غير مصرح: يلزم تسجيل الدخول للوحة التحكم."
-    )
+    if not validate_session_token(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="غير مصرح: يلزم تسجيل الدخول للوحة التحكم."
+        )
+    return True
 
 
 def verify_extraction_access(request: Request):
@@ -221,7 +184,6 @@ class ExtractRequest(BaseModel):
 class CookieUpdateRequest(BaseModel):
     cookies_text: str = Field(..., description="نص الكوكيز بأي صيغة (JSON أو Netscape أو Header)")
     test_immediately: Optional[bool] = Field(False, description="إجراء فحص حي فوري بعد الحفظ")
-    label: Optional[str] = Field(None, description="اسم تعريفي اختياري لحساب الكوكيز في الـ Pool")
 
 
 class CookieTestRequest(BaseModel):
@@ -252,10 +214,6 @@ class SecuritySettingsUpdateRequest(BaseModel):
     use_oauth2: Optional[bool] = Field(None, description="تفعيل OAuth2")
     po_token: Optional[str] = Field(None, description="PO Token")
     visitor_data: Optional[str] = Field(None, description="Visitor Data")
-    telegram_bot_token: Optional[str] = Field(None, description="توكن بوت تيليجرام للتنبيهات")
-    telegram_chat_id: Optional[str] = Field(None, description="معرف محادثة تيليجرام (Chat ID)")
-    webhook_url: Optional[str] = Field(None, description="رابط Webhook خارجي للتنبيهات")
-    alerts_enabled: Optional[bool] = Field(None, description="تفعيل نظام التنبيهات التلقائية")
 
 
 
@@ -269,7 +227,7 @@ def root_endpoint(request: Request):
     return {
         "status": "online",
         "service": "YouTube Direct Links Extractor & Chunked Range Streaming API",
-        "version": "1.6.0",
+        "version": "1.4.0",
         "dashboard": "/dashboard",
         "documentation": "/docs",
         "endpoints": {
@@ -283,16 +241,12 @@ def root_endpoint(request: Request):
             "POST /api/system/services/restart": "إعادة تشغيل وتهيئة كافة الخدمات الخلفية دون انقطاع الخادم",
             "POST /api/system/server/restart": "إعادة تشغيل خادم السيرفر بالكامل (Server Process Restart)",
             "GET /api/cookies/status": "فحص حالة وصلاحية الكوكيز المسجلة",
-            "GET /api/cookies/pool": "عرض قائمة حسابات الكوكيز المتعددة (Multi-Account Cookie Pool)",
             "POST /api/cookies/update": "تحديث الكوكيز بأي صيغة (JSON أو Netscape)",
             "POST /api/cookies/test": "فحص حي للكوكيز الحالية",
             "DELETE /api/cookies": "مسح الكوكيز والتحويل لوضع الزائر",
             "POST /api/extract": "استخراج الروابط المباشرة (JSON body)",
             "GET /api/extract": "استخراج الروابط المباشرة (Query param)",
             "GET /api/stream": "بث الفيديو والصوت مع تقطيع 10MB لتجاوز خنق السرعة ودعم Range والـ Seeking السلس",
-            "GET /api/stream/mux": "دمج الفيديو الخالي من الصوت (1080p/4K) مع الصوت لحظياً عبر FFmpeg",
-            "GET /api/stats/summary": "إحصائيات عمليات الاستخراج وأعلى الروابط طلباً والنشاط اللحظي ومعدلات النجاح",
-            "POST /api/stats/clear": "تصفير ومسح كافة إحصائيات وسجلات الاستخراج",
             "GET /api/logs": "سجل العمليات والأخطاء الحية",
             "GET /api/debug": "فحص بيئة السيرفر والأدوات"
         }
@@ -310,8 +264,7 @@ def get_dashboard():
 # ===================== AUTHENTICATION & SECURITY ENDPOINTS =====================
 
 @app.post("/api/auth/login", tags=["Security & Auth"])
-@limiter.limit("10/minute")
-def login(request: Request, payload: LoginRequest, response: Response):
+def login(payload: LoginRequest, response: Response):
     """تسجيل الدخول إلى لوحة التحكم والتحقق من كلمة مرور المشرف"""
     if not verify_admin_password(payload.password):
         raise HTTPException(
@@ -377,58 +330,16 @@ def remove_domain_endpoint(payload: DomainRequest, request: Request, admin: bool
 
 @app.post("/api/security/settings", tags=["Security & Auth"])
 def update_sec_settings(payload: SecuritySettingsUpdateRequest, request: Request, admin: bool = Depends(require_admin)):
-    """تحديث خيارات الأمان (وضع الفحص الصارم، توليد مفتاح API، وتفضيلات التنبيهات)"""
+    """تحديث خيارات الأمان (وضع الفحص الصارم وتوليد مفتاح API جديد)"""
     res = update_security_preferences(
         strict_mode=payload.strict_mode,
         generate_new_api_key=payload.generate_new_api_key or False,
         force_ipv6=payload.force_ipv6,
         use_oauth2=payload.use_oauth2,
         po_token=payload.po_token,
-        visitor_data=payload.visitor_data,
-        telegram_bot_token=payload.telegram_bot_token,
-        telegram_chat_id=payload.telegram_chat_id,
-        webhook_url=payload.webhook_url,
-        alerts_enabled=payload.alerts_enabled
+        visitor_data=payload.visitor_data
     )
     return {"success": True, "settings": res}
-
-
-@app.post("/api/security/po-token/generate", tags=["Security & Auth"])
-async def generate_po_token_endpoint(request: Request, admin: bool = Depends(require_admin)):
-    """استخراج PO Token و Visitor Data تلقائياً عبر متصفح Chromium الخفي وحفظهما مباشرة"""
-    res = await auto_generate_po_token_and_visitor_data()
-    if not res.get("success"):
-        raise HTTPException(status_code=400, detail=res.get("message", "فشل التوليد التلقائي."))
-    cur = get_security_settings()
-    updated = update_security_preferences(
-        strict_mode=cur.get("strict_mode", False),
-        po_token=res.get("po_token", ""),
-        visitor_data=res.get("visitor_data", "")
-    )
-    return {
-        **res,
-        "settings": updated
-    }
-
-
-@app.post("/api/security/alerts/test", tags=["Security & Auth"])
-def test_alerts_endpoint(request: Request, admin: bool = Depends(require_admin)):
-    """إرسال رسالة اختبار فورية إلى قنوات التنبيه المفعّلة (Telegram / Webhook)"""
-    ok, msg = send_system_alert(
-        title="🔔 اختبار نظام التنبيهات الفورية",
-        message="تم إرسال هذا التنبيه التجريبي بنجاح من لوحة تحكم YouTube Extractor API للتأكد من جاهزية الربط.",
-        level="info",
-        force=True
-    )
-    if not ok:
-        raise HTTPException(
-            status_code=400,
-            detail=f"تعذر إرسال التنبيه: {msg}"
-        )
-    return {
-        "success": True,
-        "message": msg
-    }
 
 
 @app.post("/api/security/workers/add", tags=["Security & Auth"])
@@ -487,20 +398,20 @@ def test_domain_endpoint(payload: DomainRequest, request: Request, admin: bool =
 # ===================== MONITORING & AUTO-UPDATER ENDPOINTS =====================
 
 @app.get("/api/monitor/health", tags=["Monitoring Center"])
-def get_health_monitoring(request: Request, admin: bool = Depends(require_admin)):
+def get_health_monitoring():
     """تقرير مراقبة شامل وفوري لكافة مكونات النظام (Deno, Node, yt-dlp, Cookies, FFmpeg, Network, Resources)"""
     return get_full_monitoring_report()
 
 
 @app.get("/api/monitor/resources", tags=["Monitoring Center"])
-def get_live_resources(request: Request, admin: bool = Depends(require_admin)):
+def get_live_resources():
     """فحص حي سريع لموارد الخادم (CPU, RAM, Disk, Bandwidth, Uptime) للتحديث التلقائي الفوري"""
     from health_monitor import check_system_resources
     return check_system_resources()
 
 
 @app.post("/api/monitor/probe", tags=["Monitoring Center"])
-def run_system_probe(request: Request, payload: Optional[CookieTestRequest] = None, admin: bool = Depends(require_admin)):
+def run_system_probe(payload: Optional[CookieTestRequest] = None):
     """إجراء فحص حي فوري وتجربة اتصال مع يوتيوب لقياس زمن الاستجابة والتأكد من عمل كافة المكونات"""
     target_url = (payload.url if payload and payload.url else "https://www.youtube.com/watch?v=dQw4w9WgXcQ").strip()
     probe_result = test_cookie_health_live(target_url)
@@ -512,7 +423,7 @@ def run_system_probe(request: Request, payload: Optional[CookieTestRequest] = No
 
 
 @app.get("/api/system/version", tags=["Auto-Updater"])
-def get_system_version_info(request: Request, admin: bool = Depends(require_admin)):
+def get_system_version_info():
     """تقرير إصدار yt-dlp الحالي والإصدار المتاح على PyPI وحالة التحديث التلقائي"""
     return get_updater_status()
 
@@ -527,7 +438,7 @@ def trigger_system_update(request: Request, force: bool = Query(False, descripti
 # ===================== SYSTEM MAINTENANCE & CONTROL (CACHE & RESTARTS) =====================
 
 @app.get("/api/system/cache", tags=["System Maintenance & Control"])
-def get_cache_status(request: Request, admin: bool = Depends(require_admin)):
+def get_cache_status():
     """الحصول على إحصائيات ذاكرة الكاش المؤقتة (TTLCache) للروابط وكاش ترويسات البث."""
     stream_cache_count = get_stream_metadata_cache_size()
     return {
@@ -689,8 +600,8 @@ async def restart_server_endpoint(request: Request, admin: bool = Depends(requir
 # ===================== COOKIES MANAGEMENT ENDPOINTS =====================
 
 @app.get("/api/cookies/status", tags=["Cookie Hub"])
-def get_cookie_status(request: Request, admin: bool = Depends(require_admin)):
-    """فحص حالة الكوكيز المسجلة على السيرفر وتواريخ انتهائها ومفاتيح المصادقة ومسبح الحسابات"""
+def get_cookie_status():
+    """فحص حالة الكوكيز المسجلة على السيرفر وتواريخ انتهائها ومفاتيح المصادقة"""
     cookies, cookie_path = read_active_cookies()
     health = analyze_cookies_health(cookies)
     file_size = os.path.getsize(cookie_path) if cookie_path and os.path.exists(cookie_path) else 0
@@ -700,52 +611,19 @@ def get_cookie_status(request: Request, admin: bool = Depends(require_admin)):
         "is_valid_file": bool(cookie_path and os.path.exists(cookie_path) and file_size > 10 and len(cookies) > 0),
         "file_path": cookie_path,
         "file_size_bytes": file_size,
-        "pool": get_cookie_pool_summary()
-    }
-
-
-@app.get("/api/cookies/pool", tags=["Cookie Hub"])
-def get_cookie_pool_endpoint(request: Request, admin: bool = Depends(require_admin)):
-    """عرض قائمة حسابات الكوكيز المتعددة في المسبح (Multi-Account Cookie Pool)"""
-    return get_cookie_pool_summary()
-
-
-@app.post("/api/cookies/pool/{cookie_id}/activate", tags=["Cookie Hub"])
-def activate_pool_cookie_endpoint(cookie_id: str, request: Request, admin: bool = Depends(require_admin)):
-    """تفعيل حساب كوكيز محدد من المسبح ليصبح الملف الرئيسي النشط"""
-    ok = activate_pool_cookie(cookie_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="لم يتم العثور على حساب الكوكيز المطلوب في المسبح.")
-    return {
-        "success": True,
-        "message": "تم تفعيل حساب الكوكيز المحدد بنجاح.",
-        "pool": get_cookie_pool_summary()
-    }
-
-
-@app.delete("/api/cookies/pool/{cookie_id}", tags=["Cookie Hub"])
-def delete_pool_cookie_endpoint(cookie_id: str, request: Request, admin: bool = Depends(require_admin)):
-    """حذف حساب كوكيز محدد من مسبح التدوير"""
-    ok = remove_cookie_from_pool(cookie_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="لم يتم العثور على حساب الكوكيز المطلوب في المسبح.")
-    return {
-        "success": True,
-        "message": "تم حذف الحساب من مسبح الكوكيز بنجاح.",
-        "pool": get_cookie_pool_summary()
     }
 
 
 @app.post("/api/cookies/update", tags=["Cookie Hub"])
 def update_cookies(payload: CookieUpdateRequest, request: Request, admin: bool = Depends(require_admin)):
     """
-    تحديث الكوكيز على السيرفر بقبول أي صيغة وإضافتها تلقائياً إلى مسبح الكوكيز (Cookie Pool):
+    تحديث الكوكيز على السيرفر بقبول أي صيغة:
     - مصفوفة JSON من Cookie-Editor أو EditThisCookie
     - أسطر Netscape (ملف cookies.txt)
     - نص ترويسة HTTP (Cookie: ...)
     """
     try:
-        result = save_cookies_content(payload.cookies_text, label=payload.label)
+        result = save_cookies_content(payload.cookies_text)
         test_result = None
 
         if payload.test_immediately:
@@ -753,14 +631,12 @@ def update_cookies(payload: CookieUpdateRequest, request: Request, admin: bool =
 
         return {
             "status": "success",
-            "message": f"تم حفظ {result['cookies_count']} كوكيز بنجاح وتفعيلها في السيرفر ومسبح التدوير.",
+            "message": f"تم حفظ {result['cookies_count']} كوكيز بنجاح وتفعيلها في السيرفر.",
             "detected_format": result["detected_format"],
             "cookies_count": result["cookies_count"],
             "file_path": result["file_path"],
             "file_size_bytes": result["file_size_bytes"],
-            "pool_entry_id": result.get("pool_entry_id"),
             "health": result["health"],
-            "pool": get_cookie_pool_summary(),
             "test_result": test_result
         }
     except Exception as e:
@@ -772,7 +648,7 @@ def update_cookies(payload: CookieUpdateRequest, request: Request, admin: bool =
 
 
 @app.post("/api/cookies/test", tags=["Cookie Hub"])
-def test_cookies_live(request: Request, payload: Optional[CookieTestRequest] = None, admin: bool = Depends(require_admin)):
+def test_cookies_live(payload: Optional[CookieTestRequest] = None):
     """إجراء فحص حي فوري للكوكيز الحالية على فيديو يوتيوب لقياس زمن الاستجابة وصلاحية الجلسة"""
     target_url = (payload.url if payload and payload.url else "https://www.youtube.com/watch?v=dQw4w9WgXcQ").strip()
     return test_cookie_health_live(target_url)
@@ -799,24 +675,13 @@ class GoogleClickRequest(BaseModel):
     y: int = Field(..., description="إحداثي Y للنقر")
 
 
-class GoogleScrollRequest(BaseModel):
-    delta_x: int = Field(0, description="مقدار التمرير الأفقي")
-    delta_y: int = Field(300, description="مقدار التمرير العمودي (موجب لأسفل، سالب لأعلى)")
-
-
 class GoogleTypeRequest(BaseModel):
-    text: str = Field("", description="النص المراد كتابته")
+    text: str = Field(..., description="النص المراد كتابته")
     enter: bool = Field(False, description="الضغط على Enter بعد الكتابة")
-    clear_first: bool = Field(False, description="مسح الحقل قبل الكتابة")
-    smart_focus: bool = Field(False, description="تحديد أول حقل مرئي تلقائياً إذا لم يكن محدداً")
 
 
 class GoogleKeyRequest(BaseModel):
     key: str = Field(..., description="اسم المفتاح (Enter, Backspace, Tab...)")
-
-
-class GoogleHistoryRequest(BaseModel):
-    direction: str = Field("back", description="back أو forward")
 
 
 @app.get("/api/auth/google/status", tags=["Cookie Hub"])
@@ -834,7 +699,8 @@ async def google_auth_start(payload: GoogleLoginRequest, request: Request, admin
     """
     result = await start_google_login_session(
         timeout_minutes=payload.timeout_minutes,
-        headless=payload.headless
+        headless=payload.headless,
+        target_url="https://accounts.google.com/ServiceLogin?service=youtube&hl=ar"
     )
     return result
 
@@ -852,6 +718,7 @@ def google_auth_poll(request: Request, admin: bool = Depends(require_admin)):
     extra = {}
     if session["status"] == "done":
         try:
+            from cookie_manager import read_active_cookies, analyze_cookies_health
             cookies, _ = read_active_cookies()
             health = analyze_cookies_health(cookies)
             extra["cookie_health"] = health
@@ -872,39 +739,16 @@ async def google_auth_click(payload: GoogleClickRequest, request: Request, admin
     return await browser_mouse_click(payload.x, payload.y)
 
 
-@app.post("/api/auth/google/scroll", tags=["Cookie Hub"])
-async def google_auth_scroll(payload: GoogleScrollRequest, request: Request, admin: bool = Depends(require_admin)):
-    """التمرير لأعلى أو لأسفل في متصفح السيرفر"""
-    return await browser_mouse_scroll(payload.delta_x, payload.delta_y)
-
-
 @app.post("/api/auth/google/type", tags=["Cookie Hub"])
 async def google_auth_type(payload: GoogleTypeRequest, request: Request, admin: bool = Depends(require_admin)):
     """كتابة نص في الحقل النشط بمتصفح السيرفر"""
-    return await browser_keyboard_type(
-        payload.text,
-        press_enter=payload.enter,
-        clear_first=payload.clear_first,
-        smart_focus=payload.smart_focus
-    )
+    return await browser_keyboard_type(payload.text, payload.enter)
 
 
 @app.post("/api/auth/google/key", tags=["Cookie Hub"])
 async def google_auth_key(payload: GoogleKeyRequest, request: Request, admin: bool = Depends(require_admin)):
     """إرسال ضغطة مفتاح خاصة للمتصفح (Enter, Tab, Backspace...)"""
     return await browser_keyboard_key(payload.key)
-
-
-@app.post("/api/auth/google/clear-input", tags=["Cookie Hub"])
-async def google_auth_clear_input(request: Request, admin: bool = Depends(require_admin)):
-    """مسح محتوى الحقل المحدد حالياً بالكامل"""
-    return await browser_clear_active_input()
-
-
-@app.post("/api/auth/google/history", tags=["Cookie Hub"])
-async def google_auth_history(payload: GoogleHistoryRequest, request: Request, admin: bool = Depends(require_admin)):
-    """الرجوع للخلف أو التقدم للأمام في سجل المتصفح"""
-    return await browser_history_nav(payload.direction)
 
 
 @app.post("/api/auth/google/reload", tags=["Cookie Hub"])
@@ -934,7 +778,7 @@ async def google_auth_extract_now(request: Request, admin: bool = Depends(requir
 # ===================== DIAGNOSTICS & LOGS ENDPOINTS =====================
 
 @app.get("/api/debug", tags=["Diagnostics"])
-def debug_info(request: Request, admin: bool = Depends(require_admin)):
+def debug_info():
     """فحص تشخيصي شامل للنظام وبيئة التشغيل دون أي انهيار"""
     try:
         import yt_dlp.version
@@ -951,7 +795,6 @@ def debug_info(request: Request, admin: bool = Depends(require_admin)):
             "cookies_found": cookie_path is not None,
             "cookies_path": cookie_path,
             "cookies_size_bytes": os.path.getsize(cookie_path) if cookie_path and os.path.exists(cookie_path) else 0,
-            "cookie_pool": get_cookie_pool_summary(),
             "deno_installed": shutil.which("deno") is not None,
             "deno_path": shutil.which("deno"),
             "node_installed": shutil.which("node") is not None,
@@ -970,12 +813,10 @@ def debug_info(request: Request, admin: bool = Depends(require_admin)):
 
 @app.get("/api/logs", tags=["Diagnostics"])
 def view_logs(
-    request: Request,
     limit: int = Query(120, description="الحد الأقصى لعدد السجلات"),
     level: Optional[str] = Query(None, description="مستوى السجل (ALL, INFO, WARNING, ERROR, DEBUG)"),
     search: Optional[str] = Query(None, description="بحث نصي في رسائل السجل"),
-    raw: bool = Query(False, description="عرض كـ نص خام للنسخ المباشر"),
-    admin: bool = Depends(require_admin)
+    raw: bool = Query(False, description="عرض كـ نص خام للنسخ المباشر")
 ):
     """عرض سجلات العمليات والأخطاء الحية المسجلة أثناء فحص الروابط مع دعم الفلترة"""
     logs = get_recent_logs(limit=limit, level=level, search=search)
@@ -997,8 +838,17 @@ def delete_logs(request: Request, admin: bool = Depends(require_admin)):
 
 # ===================== VIDEO EXTRACTION & STREAMING PROXY ENDPOINTS =====================
 
-def get_server_base_url(request: Optional[Request] = None) -> str:
-    """تحديد الرابط الأساسي العام لخادم الـ FastAPI نفسه (بدون Cloudflare Workers)."""
+def get_public_base_url(request: Request) -> str:
+    """
+    تحديد الرابط الأساسي العام للخدمة على Railway مع دعم النطاقات المخصصة وتوجيهات البروكسي العكسي،
+    مع توزيع الأحمال عشوائياً بين البروكسيات في حال وجود أكثر من رابط في STREAM_PROXY_URL.
+    """
+    cf_worker = os.getenv("STREAM_PROXY_URL") or os.getenv("CLOUDFLARE_WORKER_URL")
+    if cf_worker:
+        proxies = [p.strip().rstrip("/") for p in re.split(r'[\s,;]+', cf_worker) if p.strip()]
+        if proxies:
+            return random.choice(proxies)
+
     env_base = os.getenv("API_BASE_URL") or os.getenv("BASE_URL")
     if env_base:
         return env_base.rstrip("/")
@@ -1007,207 +857,70 @@ def get_server_base_url(request: Optional[Request] = None) -> str:
     if railway_domain:
         return f"https://{railway_domain}".rstrip("/")
 
-    if request:
-        proto = request.headers.get("x-forwarded-proto") or request.url.scheme
-        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
-        return f"{proto}://{host}".rstrip("/")
-
-    return "http://localhost:8000"
+    # قراءة ترويسات البروكسي العكسي القياسية (Reverse Proxy)
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    return f"{proto}://{host}".rstrip("/")
 
 
-def get_public_base_url(request: Optional[Request] = None) -> str:
-    """
-    تحديد الرابط الأساسي العام للبث (Cloudflare Worker Pool أولاً ثم رابط السيرفر المباشر)
-    مع توزيع الأحمال عشوائياً (Round-Robin / Random Load Balancing).
-    """
-    workers = get_all_worker_urls()
-    if workers:
-        return random.choice(workers)
-
-    return get_server_base_url(request)
-
-
-def extract_canonical_cache_key(url: str, proxy_streams: bool = True) -> str:
+def extract_canonical_cache_key(url: str, proxy_streams: bool) -> str:
     """استخراج المعرف الفريد للفيديو (Video ID) لتوحيد مفتاح الكاش حتى لو اختلفت صيغ الروابط (youtu.be أو shorts أو watch?v=)."""
-    m = re.search(r'(?:v=|\/|youtu\.be\/|embed\/|shorts\/|live\/)([0-9A-Za-z_-]{11})', url)
+    m = re.search(r'(?:v=|\/|youtu\.be\/|embed\/|shorts\/)([0-9A-Za-z_-]{11})', url)
     if m:
-        return f"vid_{m.group(1)}"
-    return f"url_{url.strip()}"
-
-
-def _enrich_extraction_response(
-    raw_data: dict,
-    request: Optional[Request],
-    proxy_streams: bool,
-    is_cached: bool
-) -> dict:
-    """
-    تجهيز نسخة مستقلة من بيانات الفيديو المستخرجة وتزويدها بـ:
-    - أحدث قائمة `worker_pool` حية.
-    - روابط البث السريعة `proxy_url` المحسوبة ديناميكياً لكل صيغة.
-    - تبديل `url` إلى `proxy_url` عند تفعيل `proxy_streams=True` مع الاحتفاظ بـ `direct_url`.
-    - توليد رابط `muxed_url` لدمج الفيديو الصامت (1080p/4K) مع الصوت عبر FFmpeg.
-    """
-    data = copy.deepcopy(raw_data)
-    data["cached"] = is_cached
-    data["worker_pool"] = get_all_worker_urls()
-
-    proxy_base = get_public_base_url(request)
-    server_base = get_server_base_url(request)
-
-    streams_obj = data.get("streams", {})
-
-    # تحديد أفضل رابط صوتي خام لاستخدامه في دمج الجودات العالية الصامتة (1080p / 2K / 4K)
-    audio_list = streams_obj.get("audio_only", [])
-    best_audio_raw_url = None
-    if audio_list:
-        best_audio_raw_url = audio_list[0].get("direct_url") or audio_list[0].get("url")
-
-    for cat_name in ("video_with_audio", "video_only", "audio_only"):
-        format_list = streams_obj.get(cat_name, [])
-        for fmt in format_list:
-            raw_url = fmt.get("direct_url") or fmt.get("url")
-            if not raw_url or not raw_url.startswith("http"):
-                continue
-
-            fmt["direct_url"] = raw_url
-            filesize = fmt.get("filesize")
-            ext = fmt.get("ext") or ("m4a" if cat_name == "audio_only" else "mp4")
-            is_video = cat_name != "audio_only"
-
-            p_url = build_proxy_url(proxy_base, raw_url, filesize_bytes=filesize, ext=ext, is_video=is_video)
-            fmt["proxy_url"] = p_url
-
-            if proxy_streams:
-                fmt["url"] = p_url
-            else:
-                fmt["url"] = raw_url
-
-            if cat_name == "video_only" and best_audio_raw_url:
-                fmt["muxed_url"] = build_mux_proxy_url(server_base, raw_url, best_audio_raw_url)
-
-    return data
+        return f"vid_{m.group(1)}_{proxy_streams}"
+    return f"{url.strip()}_{proxy_streams}"
 
 
 async def handle_extraction(url: str, request: Optional[Request] = None, proxy_streams: bool = True):
-    start_time = time.perf_counter()
     url = url.strip()
     if not url:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="رابط الفيديو مطلوب.")
-
-    # استخراج معلومات العميل والدومين الطالب للإحصائيات
-    client_ip = ""
-    referer = ""
-    if request:
-        client_ip = get_real_client_ip(request)
-        referer = request.headers.get("origin") or request.headers.get("referer") or request.headers.get("host") or ""
 
     # التحقق من صلاحية الدومين ومفتاح الـ API
     if request:
         verify_extraction_access(request)
 
-    cache_key = extract_canonical_cache_key(url)
-
-    # فحص الكاش السريع قبل القفل
+    cache_key = extract_canonical_cache_key(url, proxy_streams)
     if cache_key in extraction_cache:
         logger.info(f"Returning cached extraction for {url} [Cache Hit: {cache_key}]")
-        enriched = _enrich_extraction_response(extraction_cache[cache_key], request, proxy_streams, is_cached=True)
-        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-        try:
-            record_extraction(
-                url=url,
-                video_info=enriched.get("video_info"),
-                status="success",
-                is_cached=True,
-                response_time_ms=elapsed_ms,
-                client_ip=client_ip,
-                referer=referer
-            )
-        except Exception as e:
-            logger.warning(f"Failed to record cache stats: {e}")
-        return enriched
+        cached_data = dict(extraction_cache[cache_key])
+        cached_data["cached"] = True
+        return cached_data
 
-    # SingleFlight: منع تكرار استدعاء yt-dlp لنفس الفيديو في نفس اللحظة
-    lock = _EXTRACTION_LOCKS.setdefault(cache_key, asyncio.Lock())
-    async with lock:
-        # إعادة فحص الكاش بعد الحصول على القفل (في حال أكمل طلب متزامن آخر الاستخراج للتو)
-        if cache_key in extraction_cache:
-            logger.info(f"Returning SingleFlight cached extraction for {url} [Cache Hit: {cache_key}]")
-            enriched = _enrich_extraction_response(extraction_cache[cache_key], request, proxy_streams, is_cached=True)
-            elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-            try:
-                record_extraction(
-                    url=url,
-                    video_info=enriched.get("video_info"),
-                    status="success",
-                    is_cached=True,
-                    response_time_ms=elapsed_ms,
-                    client_ip=client_ip,
-                    referer=referer
-                )
-            except Exception as e:
-                logger.warning(f"Failed to record cache stats: {e}")
-            return enriched
+    try:
+        logger.info(f"Received extraction request for URL: {url} (proxy_streams={proxy_streams})")
+        data = await asyncio.to_thread(extract_youtube_info, url)
 
-        try:
-            logger.info(f"Received extraction request for URL: {url} (proxy_streams={proxy_streams})")
-            raw_data = await asyncio.to_thread(extract_youtube_info, url)
+        # إضافة الـ Worker Pool للرد عشان لارافل يستلم القائمة ويدير التوزيع العشوائي
+        sec_settings = get_security_settings()
+        data["worker_pool"] = sec_settings.get("worker_pool", [])
 
-            # حفظ الروابط الأصلية في direct_url داخل الكاش
-            streams_obj = raw_data.get("streams", {})
-            for cat_name in ("video_with_audio", "video_only", "audio_only"):
-                for fmt in streams_obj.get(cat_name, []):
-                    raw_url = fmt.get("url")
-                    if raw_url and raw_url.startswith("http"):
-                        fmt["direct_url"] = raw_url
+        # التأكد من توفر direct_url لجميع الجودات
+        streams_obj = data.get("streams", {})
+        for cat_name in ("video_with_audio", "video_only", "audio_only"):
+            format_list = streams_obj.get(cat_name, [])
+            for fmt in format_list:
+                raw_url = fmt.get("url")
+                if raw_url and raw_url.startswith("http"):
+                    fmt["direct_url"] = raw_url
 
-            extraction_cache[cache_key] = raw_data
-            enriched = _enrich_extraction_response(raw_data, request, proxy_streams, is_cached=False)
+        data["cached"] = False
+        extraction_cache[cache_key] = data
+        return data
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Extraction failed: {error_msg}")
 
-            elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-            try:
-                record_extraction(
-                    url=url,
-                    video_info=enriched.get("video_info"),
-                    status="success",
-                    is_cached=False,
-                    response_time_ms=elapsed_ms,
-                    client_ip=client_ip,
-                    referer=referer
-                )
-            except Exception as e:
-                logger.warning(f"Failed to record success stats: {e}")
+        detail_msg = f"فشل استخراج الروابط: {error_msg} (يمكنك فحص مركز المراقبة عبر /dashboard أو مراجعة /api/logs)"
+        if "The page needs to be reloaded" in error_msg:
+            detail_msg = "يوتيوب يطلب تحديث الكوكيز (انتهت الجلسة). يرجى لصق كوكيز جديدة عبر لوحة التحكم /dashboard."
+        elif "Sign in to confirm" in error_msg or "Please sign in" in error_msg:
+            detail_msg = "يوتيوب يطلب تسجيل الدخول لتأكيد عدم وجود روبوت. يرجى تجديد الكوكيز عبر لوحة التحكم /dashboard."
 
-            return enriched
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Extraction failed: {error_msg}")
-            elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-            try:
-                record_extraction(
-                    url=url,
-                    status="failed",
-                    is_cached=False,
-                    response_time_ms=elapsed_ms,
-                    client_ip=client_ip,
-                    referer=referer,
-                    error_message=error_msg
-                )
-            except Exception as se:
-                logger.warning(f"Failed to record failure stats: {se}")
-
-            detail_msg = f"فشل استخراج الروابط: {error_msg} (يمكنك فحص مركز المراقبة عبر /dashboard أو مراجعة /api/logs)"
-            if "The page needs to be reloaded" in error_msg:
-                detail_msg = "يوتيوب يطلب تحديث الكوكيز (انتهت الجلسة). يرجى لصق كوكيز جديدة عبر لوحة التحكم /dashboard."
-            elif "Sign in to confirm" in error_msg or "Please sign in" in error_msg:
-                detail_msg = "يوتيوب يطلب تسجيل الدخول لتأكيد عدم وجود روبوت. يرجى تجديد الكوكيز عبر لوحة التحكم /dashboard."
-
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=detail_msg
-            )
-        finally:
-            _EXTRACTION_LOCKS.pop(cache_key, None)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg
+        )
 
 
 @app.post("/api/extract", tags=["Extractor"])
@@ -1227,35 +940,6 @@ async def extract_get(
 ):
     """استخراج الروابط المباشرة المؤقتة لجميع الجودات عبر طلب GET."""
     return await handle_extraction(url, request=request, proxy_streams=proxy_streams)
-
-
-# ===================== EXTRACTION STATISTICS & ANALYTICS ENDPOINTS =====================
-
-@app.get("/api/stats/summary", tags=["Extraction Statistics"])
-def get_stats_summary_endpoint(
-    request: Request,
-    top_limit: int = 15,
-    recent_limit: int = 25,
-    admin: bool = Depends(require_admin)
-):
-    """
-    استرجاع إحصائيات عمليات استخراج الروابط المباشرة:
-    - إجمالي عدد مرات الاستخراج (Total Extractions Count).
-    - عمليات اليوم ومعدلات النجاح والكاش.
-    - جدول أكثر الروابط استخراجاً وطلباً مع العناوين والصور.
-    - سجل أحدث العمليات اللحظية مع دومين العميل وزمن الاستجابة.
-    - اتجاهات الأيام والساعات والمنصات الأكثر طلباً.
-    """
-    return get_extraction_summary_metrics(top_limit=top_limit, recent_limit=recent_limit)
-
-
-@app.post("/api/stats/clear", tags=["Extraction Statistics"])
-def clear_stats_endpoint(request: Request, admin: bool = Depends(require_admin)):
-    """تصفير ومسح كافة إحصائيات وسجلات استخراج الروابط."""
-    success = clear_extraction_stats()
-    if success:
-        return {"success": True, "message": "تم تصفير كافة إحصائيات وسجلات الاستخراج بنجاح."}
-    raise HTTPException(status_code=500, detail="فشل مسح إحصائيات الاستخراج.")
 
 
 @app.options("/api/stream", tags=["Streaming Proxy"])
@@ -1286,11 +970,11 @@ async def stream_media(
     - يتجاوز خنق السرعة (Throttling) الذي يفرضه يوتيوب على المتصفحات (~32KB/s).
     - يدعم الـ Seeking الفوري بدون إعادة تحميل الملف بالكامل.
     - يدعم استجابات HTTP 206 Partial Content القياسية.
-    - محمي ضد ثغرات SSRF (يقبل نطاقات googlevideo.com المعتمدة فقط).
+    - استهلاك رام منعدم (Zero Memory Buffer) وسرعة فائقة.
     """
     url = url.strip()
-    if not validate_stream_url(url):
-        raise HTTPException(status_code=403, detail="رابط البث مرفوض أمنياً: يُسمح فقط بنطاقات googlevideo.com الرسمية.")
+    if not url or not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="رابط الفيديو المباشر غير صالح.")
 
     try:
         total_size, content_type = await get_stream_metadata(url, hint_size=size, hint_mime=mime)
@@ -1363,37 +1047,6 @@ async def stream_media(
             headers=resp_headers,
             media_type=content_type
         )
-
-
-@app.get("/api/stream/mux", tags=["Streaming Proxy"])
-async def stream_muxed_media(
-    video_url: str = Query(..., description="رابط الفيديو المباشر الخالي من الصوت (1080p/2K/4K)"),
-    audio_url: str = Query(..., description="رابط الصوت المباشر المراد دمجه لحظياً")
-):
-    """
-    دمج تدفق الفيديو الصامت (1080p/2K/4K) مع تدفق الصوت لحظياً (On-the-fly FFmpeg Muxing)
-    وبثه كملف MP4 موحد دون تخزين مؤقت على القرص (`-c copy -movflags frag_keyframe+empty_moov`).
-    """
-    if not validate_stream_url(video_url):
-        raise HTTPException(status_code=403, detail="رابط الفيديو غير صالح أمنياً: يُسمح فقط بنطاقات googlevideo.com الرسمية.")
-
-    if not validate_stream_url(audio_url):
-        raise HTTPException(status_code=403, detail="رابط الصوت غير صالح أمنياً: يُسمح فقط بنطاقات googlevideo.com الرسمية.")
-
-    if not shutil.which("ffmpeg"):
-        raise HTTPException(status_code=503, detail="أداة FFmpeg غير مثبتة على الخادم حالياً لدمج البث.")
-
-    headers = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Cache-Control": "no-store",
-        "Content-Disposition": 'inline; filename="muxed_stream.mp4"'
-    }
-    return StreamingResponse(
-        stream_muxed_ffmpeg(video_url.strip(), audio_url.strip()),
-        media_type="video/mp4",
-        headers=headers
-    )
 
 
 if __name__ == "__main__":

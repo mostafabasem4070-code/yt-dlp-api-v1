@@ -11,13 +11,5 @@ ENV/
 .vscode/
 *.log
 security_config.json
-sessions.json
-cookies.txt
-cookies_runtime.txt
-cookies_pool.json
-extraction_stats.db
-extraction_stats.db-shm
-extraction_stats.db-wal
-.browser_profile/
 deploy_to_github.bat
 deploy_to_github.ps1

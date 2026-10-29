@@ -1,49 +1,31 @@
 import os
 import time
 import math
-import json
-import uuid
 import shutil
-import socket
 import logging
-import tempfile
+import socket
 from typing import Dict, Any, List, Optional, Tuple
 import yt_dlp
 from log_manager import YtDlpLogger
-from cookie_manager import (
-    get_active_cookie_path,
-    save_cookies_content,
-    analyze_cookies_health,
-    read_active_cookies,
-    get_rotated_cookie_content,
-    report_cookie_usage
-)
-from security_manager import get_security_settings, send_system_alert, get_writable_data_dir
+from cookie_manager import get_active_cookie_path, save_cookies_content, analyze_cookies_health, read_active_cookies
+from security_manager import get_security_settings
 
 logger = logging.getLogger("youtube_service")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = get_writable_data_dir()
-DEFAULT_COOKIES_FILE = os.path.join(DATA_DIR, "cookies.txt")
+DEFAULT_COOKIES_FILE = os.path.join(BASE_DIR, "cookies.txt")
 COOKIES_FILE = os.getenv("COOKIES_FILE", DEFAULT_COOKIES_FILE)
+
+import json
 
 # إذا تم تمرير الكوكيز كنص عبر متغير البيئة YOUTUBE_COOKIES (بأي صيغة: JSON أو Netscape)
 env_cookies = os.getenv("YOUTUBE_COOKIES")
 if env_cookies:
     try:
-        res = save_cookies_content(env_cookies, label="Env Variable Cookie")
+        res = save_cookies_content(env_cookies)
         logger.info(f"Successfully loaded and parsed YOUTUBE_COOKIES environment variable (Format: {res.get('detected_format')})")
     except Exception as e:
         logger.warning(f"Could not parse YOUTUBE_COOKIES environment variable: {e}")
-
-
-# كاش لفحص توفر IPv6 على المضيف لتجنب المحاولات الفاشلة المتكررة
-_IPV6_STATUS_CACHE: Dict[str, Any] = {
-    "checked_at": 0.0,
-    "supported": False,
-    "detail": "Not checked"
-}
-_IPV6_CACHE_TTL = 600.0  # 10 دقائق
 
 
 def _ensure_challenge_solver_cached():
@@ -70,7 +52,7 @@ _ensure_challenge_solver_cached()
 
 
 def get_cookie_file_path() -> Optional[str]:
-    """العثور على مسار ملف الكوكيز المؤكد مع التحقق من وجود أسطر كوكيز فعلية."""
+    """العثور على مسار ملف الكوكيز المؤكد مع التحقق من الحجم والصلاحية."""
     return get_active_cookie_path()
 
 
@@ -89,7 +71,6 @@ def format_duration(seconds: Optional[int]) -> Optional[str]:
     """تحويل مدة الفيديو بالثواني إلى صيغة دقيقة:ثانية أو ساعة:دقيقة:ثانية."""
     if seconds is None:
         return None
-    seconds = int(seconds)
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     secs = seconds % 60
@@ -108,40 +89,32 @@ def _get_js_runtime_config() -> Dict[str, Any]:
     return runtimes
 
 
-def check_ipv6_support(force_refresh: bool = False) -> Tuple[bool, str]:
-    """فحص سريع (مع كاش 10 دقائق) لوجود مسار واتصال IPv6 فعّال بالإنترنت."""
-    now = time.time()
-    if not force_refresh and (now - _IPV6_STATUS_CACHE["checked_at"]) < _IPV6_CACHE_TTL:
-        return _IPV6_STATUS_CACHE["supported"], _IPV6_STATUS_CACHE["detail"]
-
+def check_ipv6_support() -> Tuple[bool, str]:
+    """فحص سريع لوجود مسار واتصال IPv6 فعّال بالإنترنت."""
     try:
         s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-        s.settimeout(1.5)
+        s.settimeout(2.0)
+        # الاتصال بمخدم DNS العام لـ Google عبر IPv6
         s.connect(('2001:4860:4860::8888', 53))
         local_ip = s.getsockname()[0]
         s.close()
-        _IPV6_STATUS_CACHE.update({"checked_at": now, "supported": True, "detail": local_ip})
         return True, local_ip
     except Exception as e:
-        err_str = str(e)
-        _IPV6_STATUS_CACHE.update({"checked_at": now, "supported": False, "detail": err_str})
-        return False, err_str
+        return False, str(e)
 
 
 def _build_ipv6_opts(sec_cfg: Dict[str, Any], has_cookies: bool) -> Dict[str, Any]:
     """
-    بناء خيارات IPv6 لـ yt-dlp بذكاء:
-    يتم تفعيل ربط source_address='::' فقط إذا كان الخيار مفعلاً وكان المضيف يدعم توجيه IPv6 فعلياً،
-    لتجنب إضاعة الوقت في محاولات اتصال فاشلة على بيئات IPv4 فقط.
+    بناء خيارات IPv6 لـ yt-dlp:
+    - في مكتبة yt-dlp، المعامل الرسمي لفرض الاتصال عبر IPv6 هو: source_address='::'
+    - هذا يجبر مقابس الشبكة (Sockets) على استخدام AF_INET6 للاتصال بمخدمات YouTube،
+      مما يتفادى حظر عناوين IPv4 لمراكز البيانات والـ Cloud.
     """
     opts = {}
     if not sec_cfg.get("force_ipv6", True):
         return opts
 
-    ipv6_ok, _ = check_ipv6_support()
-    if not ipv6_ok:
-        return opts
-
+    # المعامل الحقيقي في yt-dlp المكافئ لـ --force-ipv6
     opts['source_address'] = '::'
     opts['force_ipv6'] = True
 
@@ -154,33 +127,32 @@ def _build_ipv6_opts(sec_cfg: Dict[str, Any], has_cookies: bool) -> Dict[str, An
 
 
 def _run_yt_dlp(url: str, use_cookies: bool = True, custom_clients: Optional[List[str]] = None) -> Dict[str, Any]:
-    """تنفيذ استخراج yt-dlp بأعلى سرعة ودون أي تأخير مصطنع مع دعم تدوير الكوكيز."""
+    """تنفيذ استخراج yt-dlp بإعدادات متطورة وسجل مخصص وحل التحديات."""
     ydl_opts: Dict[str, Any] = {
         'quiet': False,
         'no_warnings': False,
         'skip_download': True,
         'extract_flat': False,
-        'noplaylist': True,
         'logger': YtDlpLogger(),
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
         },
         'format_sort': ['lang:orig', 'lang', 'quality', 'res', 'fps'],
         'remote_components': {'ejs:github'},
-        'socket_timeout': 15,
+        'sleep_interval_requests': 1,
+        'max_sleep_interval_requests': 3
     }
 
+    import tempfile
+    import uuid
     runtime_cookie = None
-    pool_entry_id = None
 
     sec_cfg = get_security_settings()
 
-    cookie_content = None
-    if use_cookies:
-        cookie_content, pool_entry_id = get_rotated_cookie_content()
-
-    will_use_cookies = bool(use_cookies and cookie_content and len(cookie_content.strip()) > 20)
+    # تحديد ما إذا كانت الكوكيز ستُستخدم فعلاً (لاتخاذ قرار IPv6)
+    cookie_path_check = get_cookie_file_path() if use_cookies else None
+    will_use_cookies = bool(use_cookies and cookie_path_check and os.path.exists(cookie_path_check))
 
     # تطبيق خيارات IPv6 الانتقائية الذكية
     ipv6_opts = _build_ipv6_opts(sec_cfg, has_cookies=will_use_cookies)
@@ -191,19 +163,20 @@ def _run_yt_dlp(url: str, use_cookies: bool = True, custom_clients: Optional[Lis
         ydl_opts['password'] = ''
         logger.info("Using OAuth2 authentication.")
 
+    # إعداد محرك JavaScript إن وجد
     js_conf = _get_js_runtime_config()
     if js_conf:
         ydl_opts['js_runtimes'] = js_conf
 
     if use_cookies:
         if will_use_cookies:
+            # إنشاء نسخة مؤقتة لتجنب تعارض القراءة/الكتابة المتزامن وتلف ملف الكوكيز
             runtime_cookie = os.path.join(tempfile.gettempdir(), f"yt_cookies_{uuid.uuid4().hex}.txt")
-            with open(runtime_cookie, "w", encoding="utf-8") as cf:
-                cf.write(cookie_content)
+            shutil.copy2(cookie_path_check, runtime_cookie)
             ydl_opts['cookiefile'] = runtime_cookie
-            logger.info(f"Using active cookie session (pool_id={pool_entry_id or 'disk'})")
+            logger.info(f"Using cookies from: {cookie_path_check} (copied to runtime)")
         else:
-            logger.info("Cookie requested but no valid cookies found; proceeding as guest.")
+            logger.info("Cookie file requested but none found on disk; proceeding as guest.")
     else:
         logger.info("Explicitly attempting extraction without cookies (guest mode).")
 
@@ -215,17 +188,10 @@ def _run_yt_dlp(url: str, use_cookies: bool = True, custom_clients: Optional[Lis
 
     po_token = sec_cfg.get("po_token")
     visitor_data = sec_cfg.get("visitor_data")
-    # لا نحقن visitor_data الخاص بالزائر عند استخدام كوكيز حساب مسجل حتى لا يتعارض مع جلسة الحساب (DATASYNC_ID)
-    if not will_use_cookies:
-        if po_token and visitor_data:
-            extractor_args_youtube['po_token'] = [f"web+{po_token}", f"mweb+{po_token}"]
-            extractor_args_youtube['visitor_data'] = [visitor_data]
-            logger.info("Injected PO Token and Visitor Data (Guest mode).")
-        elif visitor_data:
-            extractor_args_youtube['visitor_data'] = [visitor_data]
-    elif po_token:
-        extractor_args_youtube['po_token'] = [f"web+{po_token}", f"mweb+{po_token}"]
-        logger.info("Injected PO Token with active cookies.")
+    if po_token and visitor_data:
+        extractor_args_youtube['po_token'] = [f"web+{po_token}"]
+        extractor_args_youtube['visitor_data'] = [visitor_data]
+        logger.info("Injected manual PO Token and Visitor Data.")
 
     if extractor_args_youtube:
         ydl_opts['extractor_args'] = {
@@ -242,22 +208,15 @@ def _run_yt_dlp(url: str, use_cookies: bool = True, custom_clients: Optional[Lis
             info = ydl.extract_info(url, download=False)
             if not info:
                 raise ValueError("No video data returned by yt-dlp.")
-            if pool_entry_id:
-                report_cookie_usage(pool_entry_id, success=True)
             return info
     except Exception as e:
-        err_msg = str(e)
-        err_lower = err_msg.lower()
-
-        if pool_entry_id and any(k in err_lower for k in ["sign in", "reloaded", "bot", "cookies"]):
-            report_cookie_usage(pool_entry_id, success=False, error_msg=err_msg)
-
-        if ydl_opts.get('source_address') == '::' and any(kw in err_lower for kw in [
+        err_msg = str(e).lower()
+        # إذا كان الخطأ متعلقاً بعدم توفر مسار شبكة IPv6 على المضيف، نتراجع لـ IPv4 فوراً دون فشل الطلب
+        if ydl_opts.get('source_address') == '::' and any(kw in err_msg for kw in [
             'no remote ipv6', 'network is unreachable', 'winerror 10051',
             'cant use "::"', "can't use \"::\"", 'address family not supported'
         ]):
-            logger.warning("IPv6 failed on host; invalidating IPv6 cache and retrying with IPv4 immediately...")
-            _IPV6_STATUS_CACHE.update({"checked_at": time.time(), "supported": False, "detail": err_msg})
+            logger.warning("IPv6 is not routable on this host environment; retrying extraction with IPv4 fallback...")
             fallback_opts = dict(ydl_opts)
             fallback_opts.pop('source_address', None)
             fallback_opts.pop('force_ipv6', None)
@@ -278,64 +237,51 @@ def _run_yt_dlp(url: str, use_cookies: bool = True, custom_clients: Optional[Lis
 def extract_youtube_info(url: str) -> Dict[str, Any]:
     """
     استخراج تفاصيل الفيديو والروابط المباشرة المؤقتة مع آلية متطورة متعددة المراحل
-    لتجاوز أخطاء البوت أو انتهاء الكوكيز بأفضل أداء ممكن عبر مشغلات بديلة.
+    لتجاوز أخطاء البوت أو انتهاء الكوكيز بأفضل أداء ممكن عبر مشغلات بديلة (tv_downgraded, android_vr, web_embedded).
     """
     info = None
     last_error = None
     strategy_used = "unknown"
 
-    # التحقق الفعلي من توفر كوكيز صالحة (في المسبح أو على القرص)
-    cookie_content, _ = get_rotated_cookie_content()
-    has_cookies = bool(cookie_content and len(cookie_content.strip()) > 20)
+    # مرحلة 1: المحاولة باستخدام الكوكيز النشطة إذا كانت متوفرة على القرص
+    cookie_path = get_cookie_file_path()
+    has_cookies = bool(cookie_path and os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 10)
 
-    # مرحلة 1: المحاولة باستخدام الكوكيز النشطة إذا كانت متوفرة
     if has_cookies:
         try:
-            logger.info(f"Strategy 1A (Cookies Standard): Full extraction with cookies for URL: {url}")
+            logger.info(f"Strategy 1 (Cookies Standard): Full extraction with cookies for URL: {url}")
             info = _run_yt_dlp(url, use_cookies=True)
             strategy_used = "cookies_standard"
         except Exception as e:
             last_error = e
-            logger.warning(f"Strategy 1A (Cookies Standard) failed: {e}")
+            logger.warning(f"Strategy 1 (Cookies) failed: {e}")
 
-        if not info:
-            try:
-                logger.info(f"Strategy 1B (Cookies Multi-Client): Retrying with cookies + tv_downgraded/web_creator/mweb for URL: {url}")
-                info = _run_yt_dlp(
-                    url,
-                    use_cookies=True,
-                    custom_clients=['tv_downgraded', 'web_creator', 'mweb', 'web_safari']
-                )
-                strategy_used = "cookies_multi_client"
-            except Exception as e:
-                last_error = e
-                logger.warning(f"Strategy 1B (Cookies Multi-Client) failed: {e}")
-
-    # مرحلة 2: تجربة مشغل tv_downgraded و web_creator بدون كوكيز
+    # مرحلة 2: إذا فشلت الكوكيز أو لم تكن متوفرة، تجربة مشغل tv_downgraded بدون كوكيز
     if not info:
         try:
-            logger.info("Strategy 2 (TV Downgraded Guest): Retrying with tv_downgraded without cookies...")
+            logger.info(f"Strategy 2 (TV Downgraded Guest): Retrying with tv_downgraded without cookies...")
             info = _run_yt_dlp(url, use_cookies=False, custom_clients=['tv_downgraded'])
             strategy_used = "tv_downgraded_guest"
         except Exception as e:
             last_error = e
             logger.warning(f"Strategy 2 (TV Downgraded) failed: {e}")
 
-    # مرحلة 3: تجربة مشغلات الهاتف والواقع الافتراضي android_vr و ios بدون كوكيز
+    # مرحلة 3: تجربة مشغلات الواقع الافتراضي والهاتف android_vr و android بدون كوكيز
+    # تطبيقات الهاتف تستخدم واجهات API مختلفة تماماً عن متصفحات الويب
     if not info:
         try:
-            logger.info("Strategy 3 (Android VR / iOS Guest): Retrying with android_vr, ios without cookies...")
-            info = _run_yt_dlp(url, use_cookies=False, custom_clients=['android_vr', 'ios', 'android'])
+            logger.info(f"Strategy 3 (Android VR/Mobile Guest): Retrying with android_vr, android without cookies...")
+            info = _run_yt_dlp(url, use_cookies=False, custom_clients=['android_vr', 'android'])
             strategy_used = "android_vr_guest"
         except Exception as e:
             last_error = e
             logger.warning(f"Strategy 3 (Android VR) failed: {e}")
 
-    # مرحلة 4: تجربة مشغل web_embedded و mweb بدون كوكيز
+    # مرحلة 4: تجربة مشغل web_embedded بدون كوكيز
     if not info:
         try:
-            logger.info("Strategy 4 (Web Embedded Guest): Retrying with web_embedded, mweb without cookies...")
-            info = _run_yt_dlp(url, use_cookies=False, custom_clients=['web_embedded', 'mweb'])
+            logger.info(f"Strategy 4 (Web Embedded Guest): Retrying with web_embedded without cookies...")
+            info = _run_yt_dlp(url, use_cookies=False, custom_clients=['web_embedded'])
             strategy_used = "web_embedded_guest"
         except Exception as e:
             last_error = e
@@ -344,7 +290,7 @@ def extract_youtube_info(url: str) -> Dict[str, Any]:
     # مرحلة 5: المحاولة كزائر افتراضي (Pure Guest fallback)
     if not info:
         try:
-            logger.info("Strategy 5 (Generic Guest): Retrying as standard guest...")
+            logger.info(f"Strategy 5 (Generic Guest): Retrying as standard guest...")
             info = _run_yt_dlp(url, use_cookies=False)
             strategy_used = "guest_default"
         except Exception as e:
@@ -352,16 +298,6 @@ def extract_youtube_info(url: str) -> Dict[str, Any]:
             logger.error(f"Strategy 5 (Generic Guest) failed: {e}")
 
     if not info:
-        err_str = str(last_error) if last_error else "Unknown error"
-        if any(k in err_str.lower() for k in ["sign in", "bot", "reloaded"]):
-            try:
-                send_system_alert(
-                    title="فشل جميع استراتيجيات الاستخراج (حظر بوت / انتهاء الكوكيز)",
-                    message=f"تعذر استخراج الفيديو `{url}` عبر جميع المراحل الخمس.\nرسالة يوتيوب: `{err_str[:180]}`",
-                    level="critical"
-                )
-            except Exception:
-                pass
         raise last_error or RuntimeError("Failed to extract video information across all fallback strategies.")
 
     # معالجة وتنظيم بيانات الفيديو والجودات
@@ -397,11 +333,13 @@ def extract_youtube_info(url: str) -> Dict[str, Any]:
         lang = f.get("language")
         lang_pref = f.get("language_preference") or 0
         
+        # كشف ما إذا كان المسار هو الصوت الأصلي للفيديو (Original Language) وتجنب الدبلجة
         is_original = bool(
             lang_pref > 0 or 
             "original" in format_note_str.lower() or 
             f.get("is_original") is True
         )
+        # إذا لم يكن هناك أي مؤشر دبلجة وكان الفيديو أحادي الصوت
         is_dubbed = bool(
             "dubbed" in format_note_str.lower() or 
             lang_pref < 0
@@ -428,7 +366,6 @@ def extract_youtube_info(url: str) -> Dict[str, Any]:
             "is_original": is_original and not is_dubbed,
             "audio_channels": f.get("audio_channels"),
             "url": direct_url,
-            "direct_url": direct_url,
         }
 
         if has_video and has_audio:
@@ -439,9 +376,10 @@ def extract_youtube_info(url: str) -> Dict[str, Any]:
             audio_only.append(format_data)
 
     def sort_by_height(item):
-        return (item.get("height") or 0, item.get("fps") or 0, item.get("vbr_kbps") or 0)
+        return item.get("height") or 0
 
     def sort_audio_priority(item):
+        # تقديم الصوت الأصلي أولاً دائماً، ثم حسب معدل البت abr
         is_orig_val = 1 if item.get("is_original") else 0
         lang_pref_val = item.get("language_preference") or 0
         abr_val = item.get("abr_kbps") or 0
