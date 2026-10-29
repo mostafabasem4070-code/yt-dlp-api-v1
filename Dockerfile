@@ -1,18 +1,22 @@
-# استخدام صورة بايثون رسمية خفيفة
-FROM python:3.11-slim
+# استخدام صورة بايثون رسمية مستقرة (Debian 12 Bookworm LTS) لضمان توافق كافة مكتبات النظام
+FROM python:3.11-slim-bookworm
 
-# منع بايثون من كتابة ملفات pyc وضمان إخراج السجلات فوراً
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# منع بايثون من كتابة ملفات pyc، وضمان إخراج السجلات فوراً، وتوحيد مسار متصفح Playwright لجميع المستخدمين
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    XDG_CACHE_HOME=/app/.cache
 
-# تثبيت الأدوات الأساسية ومكتبة ffmpeg وخادم الشاشة الافتراضية ومكتبات Chromium (Playwright)
+# تثبيت الأدوات الأساسية ومكتبة ffmpeg وخادم الشاشة الافتراضية Xvfb والخطوط العربية ومكتبات Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ffmpeg \
     ca-certificates \
     gnupg \
     xvfb \
-    # مكتبات Chromium المطلوبة لـ Playwright
+    fonts-liberation \
+    fonts-dejavu-core \
+    fonts-freefont-ttf \
     libnss3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -29,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     libdbus-1-3 \
     libatspi2.0-0 \
+    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
 # تثبيت Node.js 20 LTS الحديث (اللازم لـ yt-dlp لدعم --permission وحل تحديات n-challenge)
@@ -38,6 +43,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 # تثبيت Deno (المحرك الافتراضي والمفضل رسمياً من yt-dlp لحل تحديات التشفير والبوت)
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+RUN chmod 755 /usr/local/bin/deno
 
 WORKDIR /app
 
@@ -45,19 +51,23 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# تثبيت متصفح Chromium لـ Playwright (لميزة استخراج الكوكيز تلقائياً)
-RUN playwright install chromium --with-deps || true
+# تثبيت متصفح Chromium في المسار الموحد /ms-playwright مع منح صلاحيات القراءة والتشغيل لأي مستخدم في الحاوية
+RUN mkdir -p /ms-playwright \
+    && playwright install chromium \
+    && chmod -R 777 /ms-playwright
 
-# نسخ وتجهيز كاش مكتبة فك التحديات (challenge-solver) لضمان عمل Deno فورياً دون الحاجة لتنزيلها من GitHub
-RUN mkdir -p /root/.cache/yt-dlp/challenge-solver
+# نسخ وتجهيز كاش مكتبة فك التحديات (challenge-solver) لضمان عمل Deno فورياً سواء عملت الحاوية كـ root أو مستخدم عادي
+RUN mkdir -p /root/.cache/yt-dlp/challenge-solver /app/.cache/yt-dlp/challenge-solver
 COPY challenge_solver_cache.json /root/.cache/yt-dlp/challenge-solver/lib.json
+COPY challenge_solver_cache.json /app/.cache/yt-dlp/challenge-solver/lib.json
 
-# نسخ كود المشروع بالكامل
+# نسخ كود المشروع بالكامل وضبط الصلاحيات لدعم بيئات Hostless.cloud / Railway / Docker
 COPY . .
+RUN chmod -R 777 /app
 
-# منفذ التشغيل الافتراضي (Railway يقوم بتمرير متغير PORT تلقائياً)
+# منفذ التشغيل الافتراضي (المنصات السحابية تمرر متغير PORT تلقائياً)
 ENV PORT=8000
 EXPOSE ${PORT}
 
-# تشغيل خادم Uvicorn وربطه بالمنفذ المخصص مع دعم البروكسي العكسي لـ Railway
+# تشغيل خادم Uvicorn وربطه بالمنفذ المخصص مع دعم البروكسي العكسي
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

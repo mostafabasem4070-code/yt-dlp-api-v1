@@ -53,28 +53,103 @@ _xvfb_process = None
 def _ensure_x_server():
     """
     التأكد من توفر خادم X على أنظمة لينكس.
-    إذا لم يكن DISPLAY مضبوطاً، يحاول تشغيل Xvfb في الخلفية على الشاشة :99.
+    إذا لم يكن DISPLAY مضبوطاً أو كانت عملية Xvfb السابقة متوقفة، يحاول تشغيل Xvfb في الخلفية على الشاشة :99.
     """
     global _xvfb_process
-    if sys.platform.startswith("linux"):
-        display = os.environ.get("DISPLAY")
-        if not display:
-            xvfb_path = shutil.which("Xvfb")
-            if xvfb_path:
+    if not sys.platform.startswith("linux"):
+        return
+
+    # إذا قمنا بتشغيل Xvfb سابقاً وتوقفت العملية لسبب ما، نعيد تصفير DISPLAY
+    if _xvfb_process is not None and _xvfb_process.poll() is not None:
+        logger.warning("Previous Xvfb process terminated unexpectedly. Resetting DISPLAY.")
+        _xvfb_process = None
+        if os.environ.get("DISPLAY") == ":99":
+            os.environ.pop("DISPLAY", None)
+
+    display = os.environ.get("DISPLAY")
+    if display:
+        return
+
+    xvfb_path = shutil.which("Xvfb")
+    if not xvfb_path:
+        logger.warning("Xvfb binary not found in PATH. Browser will automatically use headless mode.")
+        return
+
+    try:
+        # إزالة ملف القفل اليتيم إن وجد بعد إعادة تشغيل الحاوية (Container Restart)
+        for lock_file in ("/tmp/.X99-lock", "/tmp/.X11-unix/X99"):
+            if os.path.exists(lock_file):
                 try:
-                    logger.info("Starting virtual X server (Xvfb) on display :99...")
-                    _xvfb_process = subprocess.Popen(
-                        ["Xvfb", ":99", "-screen", "0", "1280x800x24", "-nolisten", "tcp"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    os.environ["DISPLAY"] = ":99"
-                    time.sleep(0.5)
-                    logger.info("Xvfb started successfully on :99")
-                except Exception as e:
-                    logger.warning(f"Failed to start Xvfb: {e}")
-            else:
-                logger.warning("Xvfb binary not found in PATH. Browser may need headless mode.")
+                    os.remove(lock_file)
+                except Exception:
+                    pass
+
+        logger.info("Starting virtual X server (Xvfb) on display :99...")
+        _xvfb_process = subprocess.Popen(
+            ["Xvfb", ":99", "-screen", "0", "1280x800x24", "-ac", "-nolisten", "tcp"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.6)
+        if _xvfb_process.poll() is None:
+            os.environ["DISPLAY"] = ":99"
+            logger.info("Xvfb started successfully on :99")
+        else:
+            logger.warning("Xvfb exited immediately after start; falling back to headless mode.")
+            _xvfb_process = None
+    except Exception as e:
+        logger.warning(f"Failed to start Xvfb: {e}")
+        _xvfb_process = None
+
+
+def _cleanup_stale_profile_locks():
+    """إزالة ملفات القفل اليتيمة من مجلد المتصفح لمنع فشل الإقلاع بعد إعادة تشغيل الحاوية."""
+    if not os.path.exists(BROWSER_PROFILE_DIR):
+        return
+    for lock_name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        lock_path = os.path.join(BROWSER_PROFILE_DIR, lock_name)
+        if os.path.exists(lock_path) or os.path.islink(lock_path):
+            try:
+                os.unlink(lock_path)
+                logger.info(f"Removed stale browser profile lock: {lock_name}")
+            except Exception:
+                pass
+
+
+async def _ensure_chromium_installed() -> bool:
+    """
+    التأكد من أن متصفح Chromium الخاص بـ Playwright مثبت فعلياً،
+    وفي حال عدم وجوده (مثل بيئات Buildpacks على hostless.cloud) يتم تثبيته تلقائياً.
+    """
+    try:
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            exec_path = p.chromium.executable_path
+            if exec_path and os.path.exists(exec_path):
+                return True
+    except Exception:
+        pass
+
+    logger.info("Chromium binary not found. Attempting automatic installation via 'playwright install chromium'...")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "playwright", "install", "chromium",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=180)
+        return proc.returncode == 0
+    except Exception as e:
+        logger.error(f"Auto-install of Playwright Chromium failed: {e}")
+        return False
+
+
+STEALTH_INIT_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+window.chrome = { runtime: {} };
+Object.defineProperty(navigator, 'languages', { get: () => ['ar-EG', 'ar', 'en-US', 'en'] });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+"""
 
 
 def get_auth_session_status() -> Dict[str, Any]:
@@ -181,6 +256,7 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
         return
 
     _ensure_x_server()
+    _cleanup_stale_profile_locks()
 
     if headless_override is not None:
         use_headless = headless_override
@@ -195,6 +271,9 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
     page = None
 
     try:
+        _update_session(message="جاري التحقق من محرك متصفح Chromium...")
+        await _ensure_chromium_installed()
+
         pw = await async_playwright().start()
         _active_pw = pw
 
@@ -208,13 +287,17 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
             "--disable-blink-features=AutomationControlled",
             "--disable-infobars",
             "--disable-dev-shm-usage",
+            "--disable-gpu",
             "--disable-features=IsolateOrigins,site-per-process",
             "--window-size=1280,800",
             "--lang=ar-EG,ar",
         ]
 
+        # على لينكس السحابي نبدأ بـ Chromium المدمج مباشرة إلا إذا توفر google-chrome
+        channels_to_try = ("chrome", None) if (sys.platform == "win32" or shutil.which("google-chrome")) else (None,)
+
         context = None
-        for channel in ("chrome", None):
+        for channel in channels_to_try:
             try:
                 launch_kwargs = {
                     "user_data_dir": BROWSER_PROFILE_DIR,
@@ -223,6 +306,7 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
                     "args": launch_args,
                     "viewport": {"width": 1280, "height": 800},
                     "locale": "ar-EG",
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
                 }
                 if channel:
                     launch_kwargs["channel"] = channel
@@ -242,8 +326,10 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
                 args=launch_args,
                 viewport={"width": 1280, "height": 800},
                 locale="ar-EG",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
             )
 
+        await context.add_init_script(STEALTH_INIT_SCRIPT)
         _active_context = context
 
         page = context.pages[0] if context.pages else await context.new_page()
@@ -376,6 +462,7 @@ async def auto_generate_po_token_and_visitor_data() -> Dict[str, Any]:
     pw = None
     browser = None
     try:
+        await _ensure_chromium_installed()
         pw = await async_playwright().start()
         browser = await pw.chromium.launch(
             headless=True,
@@ -384,6 +471,7 @@ async def auto_generate_po_token_and_visitor_data() -> Dict[str, Any]:
                 "--disable-setuid-sandbox",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
+                "--disable-gpu",
                 "--mute-audio"
             ]
         )
@@ -391,6 +479,7 @@ async def auto_generate_po_token_and_visitor_data() -> Dict[str, Any]:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 720}
         )
+        await context.add_init_script(STEALTH_INIT_SCRIPT)
         page = await context.new_page()
 
         def _inspect_request(req):
@@ -434,15 +523,16 @@ async def auto_generate_po_token_and_visitor_data() -> Dict[str, Any]:
             except Exception:
                 pass
 
-        if not captured_visitor_data:
-            await page.goto("https://www.youtube.com", wait_until="domcontentloaded", timeout=20000)
-            await asyncio.sleep(1.5)
-            try:
-                captured_visitor_data = await page.evaluate(
-                    "() => (window.ytcfg && window.ytcfg.get && window.ytcfg.get('VISITOR_DATA')) || ''"
-                )
-            except Exception:
-                pass
+        if not captured_po_token or not captured_visitor_data:
+            await page.goto("https://www.youtube.com/watch?v=dQw4w9WgXcQ", wait_until="domcontentloaded", timeout=25000)
+            await asyncio.sleep(2.5)
+            if not captured_visitor_data:
+                try:
+                    captured_visitor_data = await page.evaluate(
+                        "() => (window.ytcfg && window.ytcfg.get && window.ytcfg.get('VISITOR_DATA')) || ''"
+                    )
+                except Exception:
+                    pass
 
         await browser.close()
         await pw.stop()
