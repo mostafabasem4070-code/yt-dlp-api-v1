@@ -13,3 +13,4 @@ ENV/
 security_config.json
 deploy_to_github.bat
 deploy_to_github.ps1
+.github_repos.json
