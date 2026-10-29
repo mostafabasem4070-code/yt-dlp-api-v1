@@ -72,9 +72,15 @@ function renderExtractResult(data) {
                 }
                 const sizeText = s.filesize_readable ? ` • ${s.filesize_readable}` : '';
                 streamListHtml += `
-                    <a href="${s.url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:6px; padding:7px 14px; background:${cat.color}; border:1px solid ${cat.border}; border-radius:var(--radius-md); color:${cat.textColor}; text-decoration:none; font-size:0.84rem; font-family:var(--font-mono); font-weight:600; transition:transform 0.15s ease;">
-                        <span>▶ ${label} (${s.ext || 'mp4'}${sizeText})</span>
-                    </a>
+                    <div style="display:inline-flex; align-items:center; gap:4px;">
+                        <a href="${s.url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:6px; padding:7px 14px; background:${cat.color}; border:1px solid ${cat.border}; border-radius:var(--radius-md); color:${cat.textColor}; text-decoration:none; font-size:0.84rem; font-family:var(--font-mono); font-weight:600; transition:transform 0.15s ease;">
+                            <span>▶ ${label} (${s.ext || 'mp4'}${sizeText})</span>
+                        </a>
+                        ${s.muxed_url ? `
+                        <a href="${s.muxed_url}" target="_blank" rel="noopener noreferrer" title="دمج الفيديو الصامت مع الصوت لحظياً عبر FFmpeg" style="display:inline-flex; align-items:center; gap:4px; padding:7px 10px; background:rgba(93,135,255,0.18); border:1px solid rgba(93,135,255,0.4); border-radius:var(--radius-md); color:#93c5fd; text-decoration:none; font-size:0.78rem; font-weight:700;">
+                            <span>🎬 +صوت (FFmpeg)</span>
+                        </a>` : ''}
+                    </div>
                 `;
             });
             streamListHtml += `</div></div>`;

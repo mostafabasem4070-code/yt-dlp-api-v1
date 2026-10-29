@@ -377,6 +377,18 @@ function renderAnalyticsChart(data) {
                 cached: t.cached || 0
             }));
         }
+    } else if (currentChartMode === 'hourly') {
+        const trends = data?.hourly_trends || [];
+        if (trends.length === 0) {
+            const nowHour = `${String(new Date().getHours()).padStart(2, '0')}:00`;
+            chartPoints = [{ label: nowHour, total: 0, cached: 0 }];
+        } else {
+            chartPoints = trends.map(t => ({
+                label: t.hour ? (t.hour.length > 11 ? t.hour.substring(11) : t.hour) : '',
+                total: t.total || 0,
+                cached: t.cached || 0
+            }));
+        }
     }
 
     if (chartPoints.length < 2) {
@@ -481,6 +493,17 @@ function renderAnalyticsChart(data) {
 
 function setAnalyticsChartMode(mode) {
     currentChartMode = mode;
+    const btnDaily = document.getElementById('btnChartModeDaily');
+    const btnHourly = document.getElementById('btnChartModeHourly');
+    if (btnDaily && btnHourly) {
+        if (mode === 'hourly') {
+            btnHourly.classList.add('primary');
+            btnDaily.classList.remove('primary');
+        } else {
+            btnDaily.classList.add('primary');
+            btnHourly.classList.remove('primary');
+        }
+    }
     document.querySelectorAll('.btn-chart-mode').forEach(b => {
         b.classList.remove('active');
         if (b.getAttribute('data-mode') === mode) b.classList.add('active');
@@ -489,6 +512,7 @@ function setAnalyticsChartMode(mode) {
         renderAnalyticsChart(analyticsDataCache);
     }
 }
+const switchAnalyticsChartMode = setAnalyticsChartMode;
 
 /* ==================== ACTION HANDLERS ==================== */
 function handleQuickExtractVideo(url) {
@@ -598,6 +622,7 @@ window.handleQuickExtractVideo = handleQuickExtractVideo;
 window.copyDirectText = copyDirectText;
 window.handleClearAllStatsConfirm = handleClearAllStatsConfirm;
 window.setAnalyticsChartMode = setAnalyticsChartMode;
+window.switchAnalyticsChartMode = switchAnalyticsChartMode;
 window.startAnalyticsAutoRefresh = startAnalyticsAutoRefresh;
 window.stopAnalyticsAutoRefresh = stopAnalyticsAutoRefresh;
 

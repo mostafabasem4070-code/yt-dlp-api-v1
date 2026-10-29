@@ -1,7 +1,9 @@
 import os
 import json
 import time
+import uuid
 import base64
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple, Optional
@@ -9,8 +11,25 @@ from typing import List, Dict, Any, Tuple, Optional
 logger = logging.getLogger("cookie_manager")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_COOKIES_FILE = os.path.join(BASE_DIR, "cookies.txt")
+DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DEFAULT_COOKIES_FILE = os.path.join(DATA_DIR, "cookies.txt")
 COOKIES_FILE = os.getenv("COOKIES_FILE", DEFAULT_COOKIES_FILE)
+COOKIES_POOL_FILE = os.path.join(DATA_DIR, "cookies_pool.json")
+
+# إذا كان هناك ملف كوكيز قديم في BASE_DIR ولم ينشأ بعد في DATA_DIR، ننسخه تلقائياً
+if DATA_DIR != BASE_DIR:
+    base_cookie = os.path.join(BASE_DIR, "cookies.txt")
+    if os.path.exists(base_cookie) and not os.path.exists(DEFAULT_COOKIES_FILE) and os.path.getsize(base_cookie) > 45:
+        try:
+            import shutil
+            shutil.copy2(base_cookie, DEFAULT_COOKIES_FILE)
+        except Exception:
+            pass
+
+# مؤشر التدوير الدوري (Round-Robin Index) لمسبح الكوكيز
+_POOL_RR_INDEX = 0
 
 # قائمة كوكيز المصادقة والتعريف الأساسية ليوتيوب
 CRITICAL_AUTH_COOKIES = [
@@ -45,6 +64,27 @@ EPHEMERAL_COOKIES = {
 }
 
 
+def _file_has_cookie_entries(path: Optional[str]) -> bool:
+    """التحقق الفعلي من أن ملف الكوكيز يحتوي على أسطر كوكيز حقيقية وليس مجرد ترويسات تعليق فارغة."""
+    if not path or not os.path.exists(path):
+        return False
+    try:
+        if os.path.getsize(path) <= 10:
+            return False
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                s = line.strip()
+                if not s:
+                    continue
+                if s.startswith("#HttpOnly_"):
+                    return True
+                if not s.startswith("#"):
+                    return True
+        return False
+    except Exception:
+        return False
+
+
 def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
     """
     تحليل الإدخال النصي لأي صيغة كوكيز معروفة:
@@ -60,7 +100,7 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
         return [], "empty"
 
     # 1. فحص إذا كان النص مشفر بـ Base64
-    if not text.startswith("[") and not text.startswith("{") and not "\n" in text and len(text) > 40:
+    if not text.startswith("[") and not text.startswith("{") and "\n" not in text and len(text) > 40:
         try:
             decoded = base64.b64decode(text).decode("utf-8", errors="ignore").strip()
             if decoded.startswith("[") or "# Netscape" in decoded or "\t" in decoded:
@@ -75,7 +115,6 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
         try:
             data = json.loads(text)
             if isinstance(data, dict):
-                # أحياناً يكون كائن يحتوي على مفتاح 'cookies'
                 if "cookies" in data and isinstance(data["cookies"], list):
                     data = data["cookies"]
                 else:
@@ -90,13 +129,11 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
                     if not name:
                         continue
 
-                    # استخراج وتوحيد الحقول
                     domain = str(item.get("domain") or ".youtube.com").strip()
                     path = str(item.get("path") or "/").strip()
                     secure = bool(item.get("secure", True))
                     http_only = bool(item.get("httpOnly") or item.get("httponly", False))
 
-                    # معالجة تاريخ الانتهاء
                     exp_val = item.get("expirationDate") or item.get("expires") or item.get("expiry") or 0
                     try:
                         exp = int(float(exp_val))
@@ -121,11 +158,9 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
     # 3. فحص صيغة Netscape (تبدأ بـ # أو تحتوي على سطور tab-separated أو space-separated)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     netscape_cookies = []
-    is_netscape = False
 
     for line in lines:
         if line.startswith("# Netscape") or line.startswith("# HTTP Cookie"):
-            is_netscape = True
             continue
         
         http_only = False
@@ -134,17 +169,13 @@ def parse_raw_cookie_input(raw_text: str) -> Tuple[List[Dict[str, Any]], str]:
             http_only = True
             clean_line = clean_line[len("#HttpOnly_"):]
         elif clean_line.startswith("#"):
-            # تعليق عادي
             continue
 
-        # محاولة الفصل بـ tab أولاً ثم بمسافات متعددة إذا تم استبدال الـ tab بمسافات أثناء النسخ
         parts = clean_line.split("\t")
         if len(parts) < 7:
-            # تجربة التقسيم بالمسافات
             parts = clean_line.split()
 
         if len(parts) >= 7:
-            is_netscape = True
             domain = parts[0]
             flag_str = parts[1].upper()
             flag = flag_str == "TRUE"
@@ -234,14 +265,15 @@ def convert_cookies_to_netscape(cookies: List[Dict[str, Any]]) -> str:
 
 
 def get_active_cookie_path() -> Optional[str]:
-    """العثور على مسار ملف الكوكيز الحالي النشط إذا كان موجوداً."""
+    """العثور على مسار ملف الكوكيز الحالي النشط إذا كان موجوداً ويحتوي على كوكيز فعلية."""
     candidates = [
         COOKIES_FILE,
+        DEFAULT_COOKIES_FILE,
         os.path.join(BASE_DIR, "cookies.txt"),
         os.path.join(os.getcwd(), "cookies.txt"),
     ]
     for path in candidates:
-        if path and os.path.exists(path) and os.path.getsize(path) > 10:
+        if _file_has_cookie_entries(path):
             return os.path.abspath(path)
     return None
 
@@ -264,8 +296,6 @@ def read_active_cookies() -> Tuple[List[Dict[str, Any]], Optional[str]]:
 def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     فحص شامل لحالة وصلاحية الكوكيز وتواريخ انتهائها ومفاتيح المصادقة.
-    يعتمد في احتساب تاريخ انتهاء الجلسة على كوكيز المصادقة الأساسية (Auth Cookies)،
-    ويتجاهل الكوكيز اللحظية/المؤقتة مثل GPS و YSC لضمان دقة مدة الصلاحية.
     """
     if not cookies:
         return {
@@ -287,25 +317,19 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
     auth_found = [c["name"] for c in cookies if c["name"] in CRITICAL_AUTH_COOKIES]
     missing_crit = [c for c in CRITICAL_AUTH_COOKIES if c not in names_present]
 
-    # استخراج كوكيز المصادقة التي تملك تاريخ انتهاء محدد
     auth_cookies = [
         c for c in cookies 
         if c["name"] in CRITICAL_AUTH_COOKIES and c.get("expiration", 0) > 0
     ]
     
-    # استخراج الكوكيز العامة الصالحة (مع استثناء الكوكيز اللحظية المؤقتة مثل GPS و YSC)
     general_cookies = [
         c for c in cookies 
         if c["name"] not in EPHEMERAL_COOKIES and c.get("expiration", 0) > 0
     ]
-    # إذا كانت هناك كوكيز عامة مدتها أكثر من ساعة، نتجاهل أي كوكيز تتبع لحظية أخرى أقل من ساعة
     longer_general = [c for c in general_cookies if (c.get("expiration", 0) - now_ts) > 3600]
     if longer_general:
         general_cookies = longer_general
 
-    # تحديد الكوكيز المستهدفة لحساب الصلاحية:
-    # 1. الأولوية المطلقة لكوكيز المصادقة الأساسية إذا كانت متوفرة
-    # 2. إذا لم تكن متوفرة (وضع الزائر Guest Mode)، نعتمد على الكوكيز العامة الصالحة
     target_pool = auth_cookies if auth_cookies else general_cookies
 
     future_exps = [c["expiration"] for c in target_pool if c["expiration"] > now_ts]
@@ -320,12 +344,10 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         min_target_exp = min(future_exps)
         max_target_exp = max(future_exps)
     elif all_target_exps:
-        # الكوكيز المستهدفة منتهية الصلاحية جميعها
         min_target_exp = min(all_target_exps)
         max_target_exp = max(all_target_exps)
         is_expired = True
     else:
-        # كوكيز جلسة مؤقتة (Session cookies) بدون تاريخ انتهاء بالأرقام
         min_target_exp = 0
         max_target_exp = 0
 
@@ -381,7 +403,6 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         expiry_countdown = "جلسة مؤقتة لا تنتهي برقم"
         urgency_level = "guest"
 
-    # تحديد الحالة العامة
     has_login_info = "LOGIN_INFO" in names_present
     has_sid = any(k in names_present for k in ["__Secure-3PSID", "__Secure-1PSID", "SID", "SSID", "HSID", "SAPISID", "APISID", "__Secure-3PSIDTS", "__Secure-1PSIDTS"])
     has_any_auth = has_login_info or has_sid or len(auth_found) > 0
@@ -399,7 +420,6 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         status_code = "partial"
         status_msg = f"الكوكيز مسجلة جزئياً. تنتهي جلسة الحساب بعد {expiry_countdown}."
 
-    # تفاصيل كل كوكي للعرض في لوحة التحكم
     items = []
     for c in cookies:
         c_exp = c.get("expiration", 0)
@@ -414,7 +434,6 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
         elif c_exp == 0:
             c_status = "session"
 
-        # تصنيف نوع الكوكي
         if c_name in CRITICAL_AUTH_COOKIES:
             category = "مصادقة أساسية (Auth)"
             category_badge = "primary"
@@ -444,7 +463,6 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
             "status": c_status
         })
 
-    # ترتيب العناصر: كوكيز المصادقة أولاً
     items.sort(key=lambda x: (not x["is_auth"], x["name"]))
 
     return {
@@ -469,9 +487,208 @@ def analyze_cookies_health(cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def save_cookies_content(raw_input: str) -> Dict[str, Any]:
+# ===================== MULTI-ACCOUNT COOKIE POOL & ROTATION =====================
+
+def _load_cookie_pool_raw() -> List[Dict[str, Any]]:
+    if os.path.exists(COOKIES_POOL_FILE):
+        try:
+            with open(COOKIES_POOL_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception as e:
+            logger.error(f"Failed to load cookie pool: {e}")
+    return []
+
+
+def _save_cookie_pool_raw(pool: List[Dict[str, Any]]) -> bool:
+    try:
+        with open(COOKIES_POOL_FILE, "w", encoding="utf-8") as f:
+            json.dump(pool, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save cookie pool: {e}")
+        return False
+
+
+def _compute_cookie_fingerprint(cookies: List[Dict[str, Any]]) -> str:
+    """حساب بصمة فريدة لحساب الكوكيز لمنع تكرار نفس الحساب في المسبح."""
+    for key_name in ("LOGIN_INFO", "__Secure-3PSID", "__Secure-1PSID", "SID", "SAPISID"):
+        for c in cookies:
+            if c.get("name") == key_name and c.get("value"):
+                return hashlib.sha256(f"{key_name}:{c['value']}".encode("utf-8")).hexdigest()[:16]
+    raw_concat = "|".join(sorted(f"{c.get('name')}={c.get('value')}" for c in cookies))
+    return hashlib.sha256(raw_concat.encode("utf-8")).hexdigest()[:16]
+
+
+def add_or_update_pool_entry(
+    cookies: List[Dict[str, Any]],
+    netscape_content: str,
+    label: Optional[str] = None
+) -> Dict[str, Any]:
+    """إضافة أو تحديث حساب كوكيز في المسبح (Cookie Pool) لدعم التدوير التلقائي."""
+    pool = _load_cookie_pool_raw()
+    fp = _compute_cookie_fingerprint(cookies)
+    health = analyze_cookies_health(cookies)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    existing = next((item for item in pool if item.get("fingerprint") == fp), None)
+    if existing:
+        existing["netscape_content"] = netscape_content
+        existing["cookies_count"] = len(cookies)
+        existing["has_auth"] = health.get("has_auth", False)
+        existing["updated_at"] = now_str
+        existing["fail_count"] = 0
+        existing["enabled"] = True
+        if label:
+            existing["label"] = label
+        entry = existing
+    else:
+        entry_id = f"ck_{uuid.uuid4().hex[:8]}"
+        entry_label = label or f"حساب يوتيوب #{len(pool) + 1} ({fp[:6]})"
+        entry = {
+            "id": entry_id,
+            "label": entry_label,
+            "fingerprint": fp,
+            "cookies_count": len(cookies),
+            "has_auth": health.get("has_auth", False),
+            "added_at": now_str,
+            "updated_at": now_str,
+            "uses_count": 0,
+            "fail_count": 0,
+            "last_error": "",
+            "enabled": True,
+            "netscape_content": netscape_content
+        }
+        pool.append(entry)
+
+    _save_cookie_pool_raw(pool)
+    return entry
+
+
+def get_cookie_pool_summary() -> List[Dict[str, Any]]:
+    """إرجاع قائمة كافة حسابات الكوكيز في المسبح مع حالتها الصحية الحالية."""
+    pool = _load_cookie_pool_raw()
+    summary = []
+    for item in pool:
+        raw_ns = item.get("netscape_content", "")
+        cookies, _ = parse_raw_cookie_input(raw_ns)
+        health = analyze_cookies_health(cookies)
+        summary.append({
+            "id": item.get("id"),
+            "label": item.get("label"),
+            "fingerprint": item.get("fingerprint"),
+            "cookies_count": len(cookies),
+            "has_auth": health.get("has_auth", False),
+            "status": health.get("status", "unknown"),
+            "expiry_countdown": health.get("expiry_countdown", "--"),
+            "days_until_expiry": health.get("days_until_expiry", 0),
+            "is_expired": health.get("is_expired", False),
+            "uses_count": item.get("uses_count", 0),
+            "fail_count": item.get("fail_count", 0),
+            "last_error": item.get("last_error", ""),
+            "enabled": item.get("enabled", True),
+            "updated_at": item.get("updated_at", "")
+        })
+    return summary
+
+
+def remove_cookie_from_pool(cookie_id: str) -> bool:
+    """حذف حساب كوكيز محدد من المسبح."""
+    pool = _load_cookie_pool_raw()
+    new_pool = [item for item in pool if item.get("id") != cookie_id]
+    if len(new_pool) == len(pool):
+        return False
+    _save_cookie_pool_raw(new_pool)
+    return True
+
+
+def activate_pool_cookie(cookie_id: str) -> bool:
+    """تفعيل حساب كوكيز من المسبح وكتابته في ملف cookies.txt الأساسي."""
+    pool = _load_cookie_pool_raw()
+    target = next((item for item in pool if item.get("id") == cookie_id), None)
+    if not target or not target.get("netscape_content"):
+        return False
+    target["enabled"] = True
+    target["fail_count"] = 0
+    _save_cookie_pool_raw(pool)
+
+    target_path = COOKIES_FILE or DEFAULT_COOKIES_FILE
+    with open(target_path, "w", encoding="utf-8") as f:
+        f.write(target["netscape_content"])
+    return True
+
+
+def get_rotated_cookie_content() -> Tuple[Optional[str], Optional[str]]:
     """
-    معالجة النص الوارد بأي صيغة وتحويله وتخزينه في cookies.txt مباشرة.
+    اختيار أفضل حساب كوكيز نشط من المسبح بطريقة التناوب الذكي (Round-Robin):
+    يعيد (netscape_content, pool_entry_id).
+    """
+    global _POOL_RR_INDEX
+    pool = _load_cookie_pool_raw()
+    healthy_entries = []
+    for item in pool:
+        if not item.get("enabled", True):
+            continue
+        if item.get("fail_count", 0) >= 5:
+            continue
+        raw_ns = item.get("netscape_content", "")
+        if not raw_ns:
+            continue
+        cookies, _ = parse_raw_cookie_input(raw_ns)
+        health = analyze_cookies_health(cookies)
+        if not health.get("is_expired", False) and len(cookies) > 0:
+            healthy_entries.append(item)
+
+    if healthy_entries:
+        idx = _POOL_RR_INDEX % len(healthy_entries)
+        _POOL_RR_INDEX = (_POOL_RR_INDEX + 1) % max(1, len(healthy_entries))
+        chosen = healthy_entries[idx]
+        return chosen.get("netscape_content"), chosen.get("id")
+
+    # التراجع للملف النشط على القرص إذا كان المسبح فارغاً
+    cookie_path = get_active_cookie_path()
+    if cookie_path:
+        try:
+            with open(cookie_path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read(), None
+        except Exception:
+            pass
+    return None, None
+
+
+def report_cookie_usage(pool_id: Optional[str], success: bool, error_msg: str = ""):
+    """تسجيل نتيجة استخدام الكوكيز لتحديث العدادات أو تعطيل الكوكيز التالفة وإرسال تنبيه."""
+    if not pool_id:
+        return
+    pool = _load_cookie_pool_raw()
+    target = next((item for item in pool if item.get("id") == pool_id), None)
+    if not target:
+        return
+
+    if success:
+        target["uses_count"] = target.get("uses_count", 0) + 1
+        target["fail_count"] = 0
+        target["last_error"] = ""
+    else:
+        target["fail_count"] = target.get("fail_count", 0) + 1
+        target["last_error"] = error_msg[:200]
+        if target["fail_count"] >= 3:
+            try:
+                from security_manager import send_system_alert
+                send_system_alert(
+                    title="تنبيه صلاحية الكوكيز (Cookie Pool)",
+                    message=f"الحساب `{target.get('label')}` فشل {target['fail_count']} مرات متتالية.\nالسبب: `{error_msg[:120]}`",
+                    level="warning"
+                )
+            except Exception:
+                pass
+    _save_cookie_pool_raw(pool)
+
+
+def save_cookies_content(raw_input: str, label: Optional[str] = None) -> Dict[str, Any]:
+    """
+    معالجة النص الوارد بأي صيغة وتحويله وتخزينه في cookies.txt ومسبح الكوكيز مباشرة.
     """
     cookies, detected_format = parse_raw_cookie_input(raw_input)
     if not cookies:
@@ -482,16 +699,26 @@ def save_cookies_content(raw_input: str) -> Dict[str, Any]:
 
     netscape_content = convert_cookies_to_netscape(cookies)
 
-    # حفظ في المسار الافتراضي
     target_path = COOKIES_FILE or DEFAULT_COOKIES_FILE
     os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
 
     with open(target_path, "w", encoding="utf-8") as f:
         f.write(netscape_content)
 
+    # حفظ أيضاً في BASE_DIR/cookies.txt للتوافقية إذا كان DATA_DIR مختلفاً
+    base_cookie = os.path.join(BASE_DIR, "cookies.txt")
+    if os.path.abspath(target_path) != os.path.abspath(base_cookie):
+        try:
+            with open(base_cookie, "w", encoding="utf-8") as f:
+                f.write(netscape_content)
+        except Exception:
+            pass
+
+    # إضافة أو تحديث في مسبح الكوكيز (Cookie Pool)
+    pool_entry = add_or_update_pool_entry(cookies, netscape_content, label=label)
+
     logger.info(f"Updated {len(cookies)} cookies to {target_path} (Format detected: {detected_format})")
 
-    # تحليل الحالة بعد الحفظ
     health = analyze_cookies_health(cookies)
     return {
         "status": "success",
@@ -499,20 +726,33 @@ def save_cookies_content(raw_input: str) -> Dict[str, Any]:
         "cookies_count": len(cookies),
         "file_path": target_path,
         "file_size_bytes": os.path.getsize(target_path),
+        "pool_entry_id": pool_entry.get("id"),
         "health": health
     }
 
 
-def clear_cookies_file() -> bool:
-    """مسح ملف الكوكيز تماماً للعودة لوضع الزائر."""
-    cookie_path = get_active_cookie_path()
-    if cookie_path and os.path.exists(cookie_path):
-        try:
-            with open(cookie_path, "w", encoding="utf-8") as f:
-                f.write("# Netscape HTTP Cookie File\n# Cleared\n")
-            logger.info(f"Cleared cookies file at {cookie_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error clearing cookies file: {e}")
-            return False
-    return True
+def clear_cookies_file(clear_pool: bool = True) -> bool:
+    """مسح ملف الكوكيز تماماً للعودة الفورية لوضع الزائر."""
+    paths_to_clear = {
+        COOKIES_FILE,
+        DEFAULT_COOKIES_FILE,
+        os.path.join(BASE_DIR, "cookies.txt"),
+        os.path.join(BASE_DIR, "cookies_runtime.txt"),
+        os.path.join(DATA_DIR, "cookies_runtime.txt"),
+        os.path.join(os.getcwd(), "cookies.txt"),
+    }
+    ok = True
+    for p in paths_to_clear:
+        if p and os.path.exists(p):
+            try:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write("")
+                logger.info(f"Cleared cookies file at {p}")
+            except Exception as e:
+                logger.error(f"Error clearing cookies file {p}: {e}")
+                ok = False
+
+    if clear_pool:
+        _save_cookie_pool_raw([])
+
+    return ok

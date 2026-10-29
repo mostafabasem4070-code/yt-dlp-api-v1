@@ -9,19 +9,32 @@ from typing import Dict, Any, List, Optional
 logger = logging.getLogger("stats_manager")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "extraction_stats.db")
+DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(DATA_DIR, "extraction_stats.db")
+
+if DATA_DIR != BASE_DIR:
+    old_db = os.path.join(BASE_DIR, "extraction_stats.db")
+    if os.path.exists(old_db) and not os.path.exists(DB_PATH):
+        try:
+            import shutil
+            shutil.copy2(old_db, DB_PATH)
+        except Exception:
+            pass
 
 
 def extract_video_id(url: str) -> Optional[str]:
-    """استخراج المعرف الفريد للفيديو (Video ID) من أي صيغة رابط يوتيوب."""
+    """استخراج المعرف الفريد للفيديو (Video ID) بدقة عالية من صيغ روابط يوتيوب فقط."""
     if not url:
         return None
+    s = url.strip()
     patterns = [
-        r'(?:v=|\/|youtu\.be\/|embed\/|shorts\/|live\/)([0-9A-Za-z_-]{11})',
-        r'([0-9A-Za-z_-]{11})'
+        r'(?:[?&]v=|youtu\.be/|youtube\.com/(?:embed|shorts|live|v)/)([0-9A-Za-z_-]{11})(?:[?&/#]|$)',
+        r'^([0-9A-Za-z_-]{11})$'
     ]
     for pattern in patterns:
-        m = re.search(pattern, url)
+        m = re.search(pattern, s)
         if m:
             return m.group(1)
     return None
@@ -73,6 +86,24 @@ def init_stats_db():
 init_stats_db()
 
 
+def cleanup_old_stats(retention_days: int = 30) -> int:
+    """تنظيف تلقائي للسجلات القديمة (الأقدم من retention_days يوماً) للحفاظ على سرعة وحجم قاعدة البيانات."""
+    try:
+        cutoff_ts = time.time() - (retention_days * 86400)
+        with get_db_connection() as conn:
+            cur = conn.execute("DELETE FROM extractions WHERE timestamp < ?;", (cutoff_ts,))
+            deleted = cur.rowcount
+            conn.commit()
+            if deleted > 100:
+                conn.execute("PRAGMA optimize;")
+        if deleted > 0:
+            logger.info(f"Auto-retention cleaned up {deleted} old extraction records (> {retention_days} days).")
+        return deleted
+    except Exception as e:
+        logger.warning(f"Failed to cleanup old stats: {e}")
+        return 0
+
+
 def record_extraction(
     url: str,
     video_info: Optional[Dict[str, Any]] = None,
@@ -85,7 +116,6 @@ def record_extraction(
 ) -> Optional[int]:
     """
     تسجيل عملية استخراج فورية في قاعدة البيانات.
-    يتم تسجيل كل رابط يُطلب عبر الـ API سواء كان جديداً أو من الـ TTLCache وسواء نجح أو فشل.
     """
     try:
         url_clean = (url or "").strip()
@@ -99,16 +129,14 @@ def record_extraction(
         if video_info and isinstance(video_info, dict):
             title = video_info.get("title")
             thumbnail = video_info.get("thumbnail")
-            duration = video_info.get("duration") or 0
+            duration = video_info.get("duration") or video_info.get("duration_seconds") or 0
             channel = video_info.get("uploader") or video_info.get("channel")
             if not v_id:
                 v_id = video_info.get("id")
 
-        # تنظيف الدومين الطالب (Referer or Origin)
         clean_referer = None
         if referer:
             ref_str = str(referer).strip()
-            # إزالة المسارات الطويلة للحصول على اسم الدومين
             m = re.search(r'https?://([^/]+)', ref_str)
             clean_referer = m.group(1) if m else ref_str[:100]
 
@@ -147,16 +175,7 @@ def record_extraction(
 
 def get_extraction_summary_metrics(top_limit: int = 10, recent_limit: int = 20) -> Dict[str, Any]:
     """
-    استرجاع تقرير إحصائي متكامل وشامل لعمليات الاستخراج:
-    - إجمالي العمليات الكلية.
-    - عمليات اليوم (منذ منتصف الليل).
-    - العمليات الناجحة والفاشلة ونسبة النجاح.
-    - استخراجات الكاش (Cache Hits) ونسبة التوفير.
-    - متوسط زمن المعالجة (بالمللي ثانية).
-    - أكثر الروابط استخراجاً وطلباً.
-    - أحدث عمليات الاستخراج المباشرة.
-    - الاتجاهات اليومية (Daily trends) لآخر 7 أيام.
-    - توزيع الطلبات حسب المنصات والدومينات (Top Referrers).
+    استرجاع تقرير إحصائي متكامل وشامل لعمليات الاستخراج (بما في ذلك الاتجاهات اليومية والساعية).
     """
     try:
         with get_db_connection() as conn:
@@ -288,6 +307,30 @@ def get_extraction_summary_metrics(top_limit: int = 10, recent_limit: int = 20) 
                     "cached": r["cached"]
                 })
 
+            # 5-b. التطور الساعي لآخر 24 ساعة (Hourly Trend)
+            hourly_rows = conn.execute("""
+                SELECT 
+                    substr(created_at, 12, 2) || ':00' as hour_label,
+                    substr(created_at, 1, 13) as date_hour,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
+                    SUM(CASE WHEN is_cached = 1 THEN 1 ELSE 0 END) as cached
+                FROM extractions
+                WHERE timestamp >= ?
+                GROUP BY substr(created_at, 1, 13)
+                ORDER BY date_hour DESC
+                LIMIT 24
+            """, (time.time() - 86400,)).fetchall()
+
+            hourly_trends = []
+            for r in reversed(hourly_rows):
+                hourly_trends.append({
+                    "hour": r["hour_label"],
+                    "total": r["total"],
+                    "success": r["success"],
+                    "cached": r["cached"]
+                })
+
             # 6. أكثر الدومينات / المنصات الطالبة (Top Referrers)
             ref_rows = conn.execute("""
                 SELECT 
@@ -320,6 +363,7 @@ def get_extraction_summary_metrics(top_limit: int = 10, recent_limit: int = 20) 
                 "top_videos": top_videos,
                 "recent_extractions": recent_extractions,
                 "daily_trends": daily_trends,
+                "hourly_trends": hourly_trends,
                 "top_referrers": top_referrers
             }
     except Exception as e:
@@ -344,6 +388,7 @@ def get_extraction_summary_metrics(top_limit: int = 10, recent_limit: int = 20) 
             "top_videos": [],
             "recent_extractions": [],
             "daily_trends": [],
+            "hourly_trends": [],
             "top_referrers": []
         }
 

@@ -1,21 +1,14 @@
 """
 google_auth_service.py
 ======================
-خدمة تسجيل الدخول التفاعلي والتلقائي لحساب Google/YouTube عبر متصفح Chromium / Chrome.
-تعمل على السيرفر مع شاشة تحكم حية (Interactive Remote Browser) لاستخراج الكوكيز
-مباشرةً من عنوان IP السيرفر (IPv4/IPv6) وتفادي الحظر.
-
-المزايا المتقدمة لتجاوز كشف البوت (Anti-Detection & Stealth):
-1. استخدام launch_persistent_context مع ملف تعريف ثابت (.browser_profile) لتفادي وضع التخفي الآلي.
-2. تعطيل أعلام الأتمتة بالكامل عبر ignore_default_args=['--enable-automation'].
-3. تعطيل مؤشرات التحكم الآلي عبر --disable-blink-features=AutomationControlled.
-4. دعم قناة Google Chrome الرسمية (channel="chrome") عند توفرها لتجاوز كشف "المتصفح غير آمن".
-5. دعم Xvfb تلقائياً على خوادم لينكس/Docker.
-6. واجهة تحكم تفاعلية متكاملة (نقر، كتابة، تنقل حر بين YouTube ودخول Google و SSO).
+خدمة تسجيل الدخول التفاعلي والتلقائي لحساب Google/YouTube عبر متصفح Chromium / Chrome،
+إضافة إلى التوليد التلقائي لبيانات Visitor Data و PO Token لتجاوز فحص BotGuard.
 """
 
 import os
+import re
 import sys
+import json
 import asyncio
 import logging
 import time
@@ -24,12 +17,18 @@ import subprocess
 import shutil
 from typing import Dict, Any, Optional
 
+from cookie_manager import save_cookies_content
+from security_manager import get_security_settings, update_security_preferences
+
 logger = logging.getLogger("google_auth_service")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-COOKIES_FILE = os.path.join(BASE_DIR, "cookies.txt")
-RUNTIME_COOKIES_FILE = os.path.join(BASE_DIR, "cookies_runtime.txt")
-BROWSER_PROFILE_DIR = os.path.join(BASE_DIR, ".browser_profile")
+DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+
+COOKIES_FILE = os.path.join(DATA_DIR, "cookies.txt")
+RUNTIME_COOKIES_FILE = os.path.join(DATA_DIR, "cookies_runtime.txt")
+BROWSER_PROFILE_DIR = os.path.join(DATA_DIR, ".browser_profile")
 
 # حالة الجلسة
 _auth_session: Dict[str, Any] = {
@@ -112,19 +111,16 @@ def _is_youtube_authenticated(cookies: list) -> bool:
 
 
 async def _save_extracted_cookies(cookies: list) -> int:
-    """حفظ الكوكيز في ملف cookies.txt و cookies_runtime.txt وتحديث الجلسة."""
+    """حفظ الكوكيز في ملف cookies.txt ومسبح الكوكيز (Cookie Pool) وتحديث الجلسة."""
     netscape_content = _cookies_to_netscape(cookies)
-    with open(COOKIES_FILE, "w", encoding="utf-8") as f:
-        f.write(netscape_content)
-    with open(RUNTIME_COOKIES_FILE, "w", encoding="utf-8") as f:
-        f.write(netscape_content)
+    save_cookies_content(netscape_content, label="متصفح Google التفاعلي")
 
     auth_cookie_names = [c["name"] for c in cookies if c["name"] in {"SID", "SSID", "HSID", "LOGIN_INFO", "SAPISID", "__Secure-1PSID", "__Secure-3PSID"}]
     _update_session(
         status="done",
         finished_at=time.time(),
         cookies_count=len(cookies),
-        message=f"تم استخراج {len(cookies)} كوكي وحفظها بنجاح! المفاتيح: {', '.join(auth_cookie_names[:4])}",
+        message=f"تم استخراج {len(cookies)} كوكي وحفظها في النظام ومسبح التدوير! المفاتيح: {', '.join(auth_cookie_names[:4])}",
         error=None,
     )
     logger.info(f"Cookies saved: {len(cookies)} cookies → {COOKIES_FILE}")
@@ -138,8 +134,6 @@ async def start_google_login_session(
 ) -> Dict[str, Any]:
     """
     بدء جلسة تسجيل الدخول التفاعلية لـ Google.
-    - على ويندوز: يفتح متصفح مستمر على سطح المكتب + بث في لوحة التحكم.
-    - على لينكس/سيرفر: يستخدم Xvfb لفتح متصفح حقيقي مع ملف تعريف دائم لتجاوز كشف "غير آمن".
     """
     global _auth_session
 
@@ -162,7 +156,6 @@ async def start_google_login_session(
             error=None,
         )
 
-    # تشغيل المهمة في الخلفية
     asyncio.create_task(_run_login_session(timeout_minutes, headless, target_url))
 
     return {
@@ -187,14 +180,11 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
         )
         return
 
-    # التأكد من خادم Xvfb على لينكس
     _ensure_x_server()
 
-    # تحديد وضع التشغيل (Headless أو Headed)
     if headless_override is not None:
         use_headless = headless_override
     else:
-        # إذا كنا على لينكس ولا يوجد DISPLAY ولا Xvfb، نضطر لوضع headless لتفادي الانهيار
         if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
             use_headless = True
         else:
@@ -210,7 +200,6 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
 
         _update_session(message="جاري فتح متصفح التخفي المستمر...")
 
-        # مجلد البروفايل الدائم لتجنب اعتبار الجلسة مؤقتة/بوت من قِبل جوجل
         os.makedirs(BROWSER_PROFILE_DIR, exist_ok=True)
 
         launch_args = [
@@ -224,8 +213,6 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
             "--lang=ar-EG,ar",
         ]
 
-        # محاولة فتح Chrome الحقيقي أولاً إذا كان مثبتاً، أو Chromium الافتراضي
-        # هذا يحل مشكلة Google: "قد يكون هذا المتصفح أو التطبيق غير آمن"
         context = None
         for channel in ("chrome", None):
             try:
@@ -248,7 +235,6 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
                 continue
 
         if not context:
-            # إذا فشل كل شيء، نحاول وضع headless=True مع Chromium
             context = await pw.chromium.launch_persistent_context(
                 user_data_dir=BROWSER_PROFILE_DIR,
                 headless=True,
@@ -260,7 +246,6 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
 
         _active_context = context
 
-        # أخذ الصفحة الأولى أو إنشاء صفحة جديدة
         page = context.pages[0] if context.pages else await context.new_page()
         _active_page = page
 
@@ -270,13 +255,11 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
             current_url=target_url,
         )
 
-        # تحميل صفحة تسجيل الدخول
         try:
             await page.goto(target_url, wait_until="domcontentloaded", timeout=40000)
         except Exception as nav_e:
             logger.warning(f"Navigation warning: {nav_e}")
 
-        # حلقة فحص دورية لاكتشاف إتمام تسجيل الدخول تلقائياً
         deadline = time.time() + (timeout_minutes * 60)
         authenticated = False
 
@@ -361,6 +344,151 @@ async def _cleanup_browser_resources():
     _active_page = None
     _active_context = None
     _active_pw = None
+
+
+# =========================================================================
+# التوليد التلقائي لـ PO Token و Visitor Data عبر Playwright
+# =========================================================================
+
+async def auto_generate_po_token_and_visitor_data() -> Dict[str, Any]:
+    """
+    تشغيل متصفح Chromium خفي في الخلفية لفتح صفحة مشغل يوتيوب،
+    واعتراض طلبات الشبكة وكائن ytcfg لاستخراج VISITOR_DATA و PO Token تلقائياً
+    وحفظهما في إعدادات النظام.
+    """
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return {
+            "success": False,
+            "message": "مكتبة Playwright غير مثبتة على السيرفر."
+        }
+
+    if _auth_session["status"] in ("running", "waiting_login", "extracting"):
+        return {
+            "success": False,
+            "message": "يوجد متصفح تسجيل دخول تفاعلي نشط حالياً. يرجى الانتظار حتى انتهائه."
+        }
+
+    captured_visitor_data = ""
+    captured_po_token = ""
+
+    pw = None
+    browser = None
+    try:
+        pw = await async_playwright().start()
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--mute-audio"
+            ]
+        )
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720}
+        )
+        page = await context.new_page()
+
+        def _inspect_request(req):
+            nonlocal captured_visitor_data, captured_po_token
+            url = req.url
+            if "googlevideo.com/videoplayback" in url:
+                m = re.search(r"[?&]pot=([^&]+)", url)
+                if m and not captured_po_token:
+                    captured_po_token = m.group(1)
+            elif "youtubei/v1/player" in url and req.method == "POST":
+                try:
+                    post_data = req.post_data
+                    if post_data:
+                        body = json.loads(post_data)
+                        v_data = body.get("context", {}).get("client", {}).get("visitorData")
+                        if v_data and not captured_visitor_data:
+                            captured_visitor_data = v_data
+                        po_tok = body.get("serviceIntegrityDimensions", {}).get("poToken")
+                        if po_tok and not captured_po_token:
+                            captured_po_token = po_tok
+                except Exception:
+                    pass
+
+        page.on("request", _inspect_request)
+
+        await page.goto("https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1", wait_until="domcontentloaded", timeout=25000)
+        await asyncio.sleep(2.0)
+
+        # محاولة النقر على زر التشغيل لتحفيز طلب player و poToken
+        try:
+            await page.click(".ytp-large-play-button", timeout=3000)
+            await asyncio.sleep(2.5)
+        except Exception:
+            pass
+
+        if not captured_visitor_data:
+            try:
+                captured_visitor_data = await page.evaluate(
+                    "() => (window.ytcfg && window.ytcfg.get && window.ytcfg.get('VISITOR_DATA')) || ''"
+                )
+            except Exception:
+                pass
+
+        if not captured_visitor_data:
+            await page.goto("https://www.youtube.com", wait_until="domcontentloaded", timeout=20000)
+            await asyncio.sleep(1.5)
+            try:
+                captured_visitor_data = await page.evaluate(
+                    "() => (window.ytcfg && window.ytcfg.get && window.ytcfg.get('VISITOR_DATA')) || ''"
+                )
+            except Exception:
+                pass
+
+        await browser.close()
+        await pw.stop()
+        browser = None
+        pw = None
+
+        if not captured_visitor_data and not captured_po_token:
+            return {
+                "success": False,
+                "message": "تعذر استخراج Visitor Data أو PO Token تلقائياً من يوتيوب."
+            }
+
+        cur_sec = get_security_settings()
+        new_po = captured_po_token or cur_sec.get("po_token", "")
+        new_vd = captured_visitor_data or cur_sec.get("visitor_data", "")
+
+        update_security_preferences(
+            strict_mode=cur_sec.get("strict_mode", False),
+            po_token=new_po,
+            visitor_data=new_vd
+        )
+
+        logger.info(f"Auto-generated tokens: visitor_data={bool(new_vd)}, po_token={bool(new_po)}")
+        return {
+            "success": True,
+            "visitor_data": new_vd,
+            "po_token": new_po,
+            "message": "تم استخراج وحفظ بيانات الجلسة (Visitor Data / PO Token) تلقائياً بنجاح!"
+        }
+    except Exception as e:
+        logger.error(f"Error auto-generating PO Token / Visitor Data: {e}")
+        return {
+            "success": False,
+            "message": f"خطأ أثناء التوليد التلقائي: {str(e)}"
+        }
+    finally:
+        try:
+            if browser:
+                await browser.close()
+        except Exception:
+            pass
+        try:
+            if pw:
+                await pw.stop()
+        except Exception:
+            pass
 
 
 # =========================================================================
@@ -482,7 +610,7 @@ async def browser_manual_extract() -> Dict[str, Any]:
         await _cleanup_browser_resources()
         return {
             "success": True,
-            "message": f"تم استخراج {count} كوكي وحفظها بنجاح في ملف cookies.txt!",
+            "message": f"تم استخراج {count} كوكي وحفظها بنجاح في ملف cookies.txt ومسبح التدوير!",
             "cookies_count": count
         }
     except Exception as e:
