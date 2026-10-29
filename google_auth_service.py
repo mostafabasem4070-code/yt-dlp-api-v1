@@ -558,41 +558,126 @@ async def browser_mouse_click(x: int, y: int) -> Dict[str, Any]:
 
     try:
         await _active_page.mouse.click(x, y)
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.25)
         return await capture_browser_screenshot()
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-async def browser_keyboard_type(text: str, press_enter: bool = False) -> Dict[str, Any]:
-    """كتابة نص في الحقل النشط بالمتصفح، مع خيار الضغط على Enter."""
+async def browser_mouse_scroll(delta_x: int = 0, delta_y: int = 300) -> Dict[str, Any]:
+    """التمرير لأعلى أو لأسفل في صفحة المتصفح النشطة."""
     global _active_page
     if not _active_page or _active_page.is_closed():
         return {"success": False, "message": "لا يوجد متصفح نشط."}
 
     try:
-        await _active_page.keyboard.type(text, delay=35)
+        await _active_page.mouse.wheel(delta_x, delta_y)
+        await asyncio.sleep(0.2)
+        return await capture_browser_screenshot()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def _ensure_input_focused_if_needed():
+    """إذا لم يكن هناك حقل إدخال محدد حالياً في الصفحة، يبحث عن أول حقل مرئي (بريد/كلمة مرور/نص) وينقر عليه تلقائياً."""
+    global _active_page
+    if not _active_page or _active_page.is_closed():
+        return
+    try:
+        selector = (
+            'input[type="email"]:visible, '
+            'input[type="password"]:visible, '
+            'input[type="tel"]:visible, '
+            'input[type="text"]:visible, '
+            'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):visible, '
+            'textarea:visible'
+        )
+        loc = _active_page.locator(selector).first
+        if await loc.count() > 0:
+            is_focused = await loc.evaluate("el => document.activeElement === el || (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName))")
+            if not is_focused:
+                await loc.click(timeout=2000)
+                await asyncio.sleep(0.15)
+    except Exception:
+        pass
+
+
+async def browser_keyboard_type(
+    text: str,
+    press_enter: bool = False,
+    clear_first: bool = False,
+    smart_focus: bool = False
+) -> Dict[str, Any]:
+    """كتابة نص في الحقل النشط بالمتصفح (مع دعم التحديد التلقائي للحقل والمسح المسبق والضغط على Enter)."""
+    global _active_page
+    if not _active_page or _active_page.is_closed():
+        return {"success": False, "message": "لا يوجد متصفح نشط."}
+
+    try:
+        if smart_focus:
+            await _ensure_input_focused_if_needed()
+        if clear_first:
+            await _active_page.keyboard.press("Control+a")
+            await asyncio.sleep(0.05)
+            await _active_page.keyboard.press("Backspace")
+            await asyncio.sleep(0.08)
+        if text:
+            await _active_page.keyboard.type(text, delay=25)
         if press_enter:
             await asyncio.sleep(0.2)
             await _active_page.keyboard.press("Enter")
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.35)
         return await capture_browser_screenshot()
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 async def browser_keyboard_key(key: str) -> Dict[str, Any]:
-    """الضغط على مفتاح معين (مثل Enter, Backspace, Tab, ArrowDown)."""
+    """الضغط على مفتاح معين (مثل Enter, Backspace, Tab, ArrowDown, Control+a)."""
     global _active_page
     if not _active_page or _active_page.is_closed():
         return {"success": False, "message": "لا يوجد متصفح نشط."}
 
     try:
         await _active_page.keyboard.press(key)
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.25)
         return await capture_browser_screenshot()
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+async def browser_clear_active_input() -> Dict[str, Any]:
+    """مسح محتوى حقل الإدخال المحدد حالياً بالكامل (Ctrl+A ثم Backspace)."""
+    global _active_page
+    if not _active_page or _active_page.is_closed():
+        return {"success": False, "message": "لا يوجد متصفح نشط."}
+
+    try:
+        await _ensure_input_focused_if_needed()
+        await _active_page.keyboard.press("Control+a")
+        await asyncio.sleep(0.05)
+        await _active_page.keyboard.press("Backspace")
+        await asyncio.sleep(0.2)
+        return await capture_browser_screenshot()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def browser_history_nav(direction: str = "back") -> Dict[str, Any]:
+    """التنقل للخلف أو للأمام في سجل صفحات المتصفح."""
+    global _active_page
+    if not _active_page or _active_page.is_closed():
+        return {"success": False, "message": "لا يوجد متصفح نشط."}
+
+    try:
+        if direction == "forward":
+            await _active_page.go_forward(wait_until="domcontentloaded", timeout=15000)
+        else:
+            await _active_page.go_back(wait_until="domcontentloaded", timeout=15000)
+        await asyncio.sleep(0.4)
+        return await capture_browser_screenshot()
+    except Exception as e:
+        return await capture_browser_screenshot()
 
 
 async def browser_reload_page() -> Dict[str, Any]:

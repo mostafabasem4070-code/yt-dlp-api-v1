@@ -91,8 +91,11 @@ from google_auth_service import (
     get_playwright_status,
     capture_browser_screenshot,
     browser_mouse_click,
+    browser_mouse_scroll,
     browser_keyboard_type,
     browser_keyboard_key,
+    browser_clear_active_input,
+    browser_history_nav,
     browser_reload_page,
     browser_navigate_to,
     browser_manual_extract,
@@ -796,13 +799,24 @@ class GoogleClickRequest(BaseModel):
     y: int = Field(..., description="إحداثي Y للنقر")
 
 
+class GoogleScrollRequest(BaseModel):
+    delta_x: int = Field(0, description="مقدار التمرير الأفقي")
+    delta_y: int = Field(300, description="مقدار التمرير العمودي (موجب لأسفل، سالب لأعلى)")
+
+
 class GoogleTypeRequest(BaseModel):
-    text: str = Field(..., description="النص المراد كتابته")
+    text: str = Field("", description="النص المراد كتابته")
     enter: bool = Field(False, description="الضغط على Enter بعد الكتابة")
+    clear_first: bool = Field(False, description="مسح الحقل قبل الكتابة")
+    smart_focus: bool = Field(False, description="تحديد أول حقل مرئي تلقائياً إذا لم يكن محدداً")
 
 
 class GoogleKeyRequest(BaseModel):
     key: str = Field(..., description="اسم المفتاح (Enter, Backspace, Tab...)")
+
+
+class GoogleHistoryRequest(BaseModel):
+    direction: str = Field("back", description="back أو forward")
 
 
 @app.get("/api/auth/google/status", tags=["Cookie Hub"])
@@ -859,16 +873,39 @@ async def google_auth_click(payload: GoogleClickRequest, request: Request, admin
     return await browser_mouse_click(payload.x, payload.y)
 
 
+@app.post("/api/auth/google/scroll", tags=["Cookie Hub"])
+async def google_auth_scroll(payload: GoogleScrollRequest, request: Request, admin: bool = Depends(require_admin)):
+    """التمرير لأعلى أو لأسفل في متصفح السيرفر"""
+    return await browser_mouse_scroll(payload.delta_x, payload.delta_y)
+
+
 @app.post("/api/auth/google/type", tags=["Cookie Hub"])
 async def google_auth_type(payload: GoogleTypeRequest, request: Request, admin: bool = Depends(require_admin)):
     """كتابة نص في الحقل النشط بمتصفح السيرفر"""
-    return await browser_keyboard_type(payload.text, payload.enter)
+    return await browser_keyboard_type(
+        payload.text,
+        press_enter=payload.enter,
+        clear_first=payload.clear_first,
+        smart_focus=payload.smart_focus
+    )
 
 
 @app.post("/api/auth/google/key", tags=["Cookie Hub"])
 async def google_auth_key(payload: GoogleKeyRequest, request: Request, admin: bool = Depends(require_admin)):
     """إرسال ضغطة مفتاح خاصة للمتصفح (Enter, Tab, Backspace...)"""
     return await browser_keyboard_key(payload.key)
+
+
+@app.post("/api/auth/google/clear-input", tags=["Cookie Hub"])
+async def google_auth_clear_input(request: Request, admin: bool = Depends(require_admin)):
+    """مسح محتوى الحقل المحدد حالياً بالكامل"""
+    return await browser_clear_active_input()
+
+
+@app.post("/api/auth/google/history", tags=["Cookie Hub"])
+async def google_auth_history(payload: GoogleHistoryRequest, request: Request, admin: bool = Depends(require_admin)):
+    """الرجوع للخلف أو التقدم للأمام في سجل المتصفح"""
+    return await browser_history_nav(payload.direction)
 
 
 @app.post("/api/auth/google/reload", tags=["Cookie Hub"])

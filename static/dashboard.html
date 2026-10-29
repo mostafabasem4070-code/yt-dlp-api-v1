@@ -1396,75 +1396,94 @@
     </div>
 
     <!-- ==================== INTERACTIVE REMOTE BROWSER MODAL ==================== -->
-    <div id="remoteBrowserModal" class="auth-lock-overlay" style="display:none; z-index:99999; backdrop-filter:blur(10px); background:rgba(17,28,45,0.85); align-items:center; justify-content:center; padding:16px;">
-        <div class="remote-browser-container" style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-lg); width:100%; max-width:1100px; max-height:94vh; display:flex; flex-direction:column; box-shadow:var(--shadow-elevated); overflow:hidden;">
+    <div id="remoteBrowserModal" class="auth-lock-overlay" style="display:none; z-index:99999; backdrop-filter:blur(10px); background:rgba(12,20,35,0.88); align-items:center; justify-content:center; padding:12px;">
+        <div id="remoteBrowserContainer" class="remote-browser-container" style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-lg); width:100%; max-width:1180px; max-height:96vh; display:flex; flex-direction:column; box-shadow:var(--shadow-elevated); overflow:hidden; transition:all 0.2s ease;">
             <!-- Modal Header / Titlebar -->
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border-subtle); background:var(--bg-card-hover); gap:12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid var(--border-subtle); background:var(--bg-card-hover); gap:10px; flex-wrap:wrap;">
                 <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                    <!-- Google icon -->
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                     </svg>
-                    <div>
-                        <div style="font-size:0.95rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:8px;">
-                            <span>نافذة المتصفح المباشرة - تسجيل دخول Google / YouTube</span>
-                            <span id="remoteBrowserStatusBadge" class="comp-badge primary" style="font-size:0.7rem;">بانتظار تسجيل الدخول</span>
-                        </div>
-                        <div id="remoteBrowserUrlBar" style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:650px;">
-                            https://accounts.google.com/ServiceLogin...
-                        </div>
-                    </div>
+                    <span style="font-size:0.92rem; font-weight:800; color:var(--text-main);">المتصفح التفاعلي الذكي — Google / YouTube</span>
+                    <span id="remoteBrowserStatusBadge" class="comp-badge primary" style="font-size:0.72rem;">بانتظار تسجيل الدخول</span>
+                    <span id="remoteBrowserActionIndicator" style="display:none; font-size:0.72rem; padding:2px 8px; border-radius:99px; background:rgba(93,135,255,0.18); color:var(--primary); font-weight:700;">⚡ جاري التنفيذ...</span>
                 </div>
 
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap;">
-                    <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://www.youtube.com')" title="فتح موقع YouTube مباشرة">
+                    <button class="btn-action" style="padding:5px 9px; font-size:0.78rem;" onclick="navigateRemoteBrowser('https://www.youtube.com')" title="فتح موقع YouTube مباشرة">
                         📺 <span>يوتيوب</span>
                     </button>
-                    <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://accounts.google.com/ServiceLogin?service=youtube&hl=ar')" title="فتح صفحة دخول Google المباشرة">
+                    <button class="btn-action" style="padding:5px 9px; font-size:0.78rem;" onclick="navigateRemoteBrowser('https://accounts.google.com/ServiceLogin?service=youtube&hl=ar')" title="فتح صفحة دخول Google المباشرة">
                         🔐 <span>دخول Google</span>
                     </button>
-                    <button class="btn-action light-primary" style="padding:6px 10px; font-size:0.8rem;" onclick="navigateRemoteBrowser('https://stackoverflow.com/users/login')" title="تسجيل الدخول عبر Google SSO لتفادي كشف البوت">
+                    <button class="btn-action light-primary" style="padding:5px 9px; font-size:0.78rem;" onclick="navigateRemoteBrowser('https://stackoverflow.com/users/login')" title="تسجيل الدخول عبر Google SSO">
                         🌐 <span>دخول بديل (SSO)</span>
                     </button>
-                    <button class="btn-action" style="padding:6px 10px; font-size:0.8rem;" onclick="reloadRemoteBrowser()" title="إعادة تحميل الصفحة">
-                        🔄 <span>تحديث</span>
+                    <button class="btn-action" id="btnToggleBrowserFullscreen" style="padding:5px 9px; font-size:0.78rem;" onclick="toggleRemoteBrowserFullscreen()" title="تكبير / تصغير نافذة المتصفح">
+                        ⛶ <span>تكبير</span>
                     </button>
-                    <button class="btn-action success" style="padding:6px 12px; font-size:0.8rem;" onclick="extractCookiesNow()" title="استخراج وحفظ الكوكيز فوراً">
+                    <button class="btn-action success" style="padding:5px 11px; font-size:0.78rem;" onclick="extractCookiesNow()" title="استخراج وحفظ الكوكيز فوراً">
                         💾 <span>استخراج الكوكيز الآن</span>
                     </button>
-                    <button class="btn-action danger" style="padding:6px 10px; font-size:0.8rem;" onclick="closeRemoteBrowserModal()" title="إغلاق وإلغاء الجلسة">
+                    <button class="btn-action danger" style="padding:5px 9px; font-size:0.78rem;" onclick="closeRemoteBrowserModal()" title="إغلاق وإلغاء الجلسة">
                         ✖
                     </button>
                 </div>
             </div>
 
-            <!-- Viewport Screen Area -->
-            <div id="remoteBrowserScreenWrapper" style="position:relative; background:#000; overflow:auto; display:flex; justify-content:center; align-items:center; min-height:380px; max-height:62vh; cursor:crosshair;">
-                <img id="remoteBrowserImg" src="" alt="شاشة المتصفح" style="max-width:100%; height:auto; display:block; user-select:none;" onclick="handleBrowserScreenClick(event)">
-                <div id="remoteBrowserSpinner" style="position:absolute; display:none; background:rgba(0,0,0,0.6); border-radius:8px; padding:12px; color:#fff; font-size:0.85rem; align-items:center; gap:8px;">
+            <!-- Browser Navigation & Address Bar -->
+            <div style="display:flex; align-items:center; gap:6px; padding:7px 14px; background:var(--bg-surface); border-bottom:1px solid var(--border-subtle); direction:ltr;">
+                <button class="btn-action" style="padding:4px 9px; font-size:0.8rem;" onclick="browserHistoryNav('back')" title="رجوع للصفحة السابقة">←</button>
+                <button class="btn-action" style="padding:4px 9px; font-size:0.8rem;" onclick="browserHistoryNav('forward')" title="تقدم للصفحة التالية">→</button>
+                <button class="btn-action" style="padding:4px 9px; font-size:0.8rem;" onclick="reloadRemoteBrowser()" title="إعادة تحميل الصفحة">🔄</button>
+                <input type="text" id="remoteBrowserUrlBar" class="form-input" style="flex:1; padding:5px 10px; font-size:0.78rem; font-family:var(--font-mono); direction:ltr; text-align:left;" value="https://accounts.google.com/ServiceLogin..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); navigateRemoteBrowser(this.value); }" title="اضغط Enter للانتقال للرابط">
+                <button class="btn-action" style="padding:4px 10px; font-size:0.76rem;" onclick="navigateRemoteBrowser(document.getElementById('remoteBrowserUrlBar').value)">انتقال</button>
+            </div>
+
+            <!-- Viewport Screen Area (Direct Keyboard & Mouse Wheel Enabled) -->
+            <div id="remoteBrowserScreenWrapper" tabindex="0" style="position:relative; background:#0b0f19; overflow:auto; display:flex; justify-content:center; align-items:center; min-height:400px; max-height:66vh; cursor:pointer; outline:none;"
+                 onclick="focusBrowserScreen()"
+                 onfocus="onBrowserScreenFocus(true)"
+                 onblur="onBrowserScreenFocus(false)">
+                <div id="directKeyboardBadge" style="position:absolute; top:10px; left:10px; z-index:5; background:rgba(15,23,42,0.78); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:4px 10px; border-radius:99px; font-size:0.72rem; pointer-events:none; transition:all 0.2s;">
+                    🖱️ انقر داخل الشاشة للكتابة المباشرة من الكيبورد أو التمرير بعجلة الماوس
+                </div>
+                <div id="remoteBrowserImgContainer" style="position:relative; display:inline-block; line-height:0;">
+                    <img id="remoteBrowserImg" src="" alt="شاشة المتصفح" draggable="false" style="max-width:100%; height:auto; display:block; user-select:none;" onclick="handleBrowserScreenClick(event)">
+                    <div id="remoteBrowserClickRipple" style="display:none; position:absolute; width:26px; height:26px; margin-left:-13px; margin-top:-13px; border:2.5px solid #38bdf8; background:rgba(56,189,248,0.28); border-radius:50%; pointer-events:none; z-index:6; transform:scale(1); transition:transform 0.35s ease, opacity 0.35s ease;"></div>
+                </div>
+                <div id="remoteBrowserSpinner" style="position:absolute; display:none; background:rgba(15,23,42,0.82); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:14px 20px; color:#fff; font-size:0.88rem; align-items:center; gap:10px; z-index:10;">
                     <div class="spinner"></div> <span>جاري المعالجة...</span>
                 </div>
             </div>
 
-            <!-- Interactive Toolbar at bottom -->
-            <div style="padding:12px 18px; border-top:1px solid var(--border-subtle); background:var(--bg-card-hover); display:flex; flex-direction:column; gap:10px;">
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <input type="text" id="browserTypeInput" class="form-input" style="flex:1; min-width:240px; font-size:0.9rem;" placeholder="اكتب البريد الإلكتروني أو كلمة المرور هنا واضغط إرسال..." onkeydown="if(event.key==='Enter') sendBrowserTypedText(true)">
-                    <button class="btn-action primary" onclick="sendBrowserTypedText(false)" style="white-space:nowrap;">
-                        ⌨️ <span>كتابة</span>
+            <!-- Smart Interactive Toolbar at bottom -->
+            <div style="padding:10px 16px; border-top:1px solid var(--border-subtle); background:var(--bg-card-hover); display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <div style="position:relative; flex:1; min-width:240px; display:flex; align-items:center;">
+                        <input type="text" id="browserTypeInput" class="form-input" style="width:100%; font-size:0.9rem; padding-left:36px;" placeholder="⚡ اكتب البريد أو كلمة المرور هنا واضغط Enter (تعبئة ذكية تلقائية للحقل)..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendBrowserTypedText(true, true); }">
+                        <button type="button" onclick="toggleBrowserInputSecret()" title="إظهار / إخفاء النص (لكلمات المرور)" style="position:absolute; left:8px; background:none; border:none; cursor:pointer; font-size:0.95rem; opacity:0.75;">👁️</button>
+                    </div>
+                    <button class="btn-action primary" onclick="sendBrowserTypedText(true, true)" style="white-space:nowrap;" title="يحدد حقل البريد/الباسورد في الصفحة تلقائياً ويكتب النص ويضغط Enter">
+                        ⚡ <span>تعبئة ذكية و Enter</span>
                     </button>
-                    <button class="btn-action primary" onclick="sendBrowserTypedText(true)" style="white-space:nowrap;">
-                        ↵ <span>كتابة و Enter</span>
+                    <button class="btn-action" onclick="sendBrowserTypedText(false, true)" style="white-space:nowrap;" title="كتابة النص في الحقل بدون الضغط على Enter">
+                        ⌨️ <span>كتابة فقط</span>
                     </button>
-                    <button class="btn-action" onclick="sendBrowserKey('Enter')">Enter ↵</button>
-                    <button class="btn-action" onclick="sendBrowserKey('Backspace')">⌫ مسح</button>
-                    <button class="btn-action" onclick="sendBrowserKey('Tab')">Tab ⇥</button>
+                    <button class="btn-action" onclick="clearRemoteBrowserInput()" title="مسح محتوى الحقل الحالي في المتصفح (Ctrl+A + Backspace)">
+                        🧹 <span>مسح الحقل</span>
+                    </button>
+                    <button class="btn-action" onclick="sendBrowserKey('Enter')" title="ضغط زر Enter">Enter ↵</button>
+                    <button class="btn-action" onclick="sendBrowserKey('Tab')" title="الانتقال للحقل التالي (Tab)">Tab ⇥</button>
+                    <button class="btn-action" onclick="sendBrowserKey('Backspace')" title="حذف حرف (Backspace)">⌫</button>
+                    <button class="btn-action" onclick="scrollRemoteBrowser(-320)" title="تمرير الصفحة لأعلى">▲ أعلى</button>
+                    <button class="btn-action" onclick="scrollRemoteBrowser(320)" title="تمرير الصفحة لأسفل">▼ أسفل</button>
                 </div>
-                <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
-                    <span>💡 <strong>طريقة الاستخدام:</strong> اضغط بالماوس على حقل البريد في الصورة بالأعلى لتحديده، ثم اكتب في الشريط واضغط "كتابة و Enter". بمجرد قبول الحساب والدخول سيتم حفظ الكوكيز تلقائياً!</span>
+                <div style="font-size:0.76rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                    <span>💡 <strong>تحكم مزدوج سهل:</strong> يمكنك إما <strong>الكتابة مباشرة من الكيبورد والماوس داخل الشاشة</strong> (مع دعم اللصق <code>Ctrl+V</code> والعجلة)، أو الكتابة في الشريط بالأسفل والضغط على <strong>"⚡ تعبئة ذكية و Enter"</strong> لملء الحقل تلقائياً!</span>
                     <span id="remoteBrowserCountdown" style="color:var(--primary); font-weight:700;"></span>
                 </div>
             </div>
