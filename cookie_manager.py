@@ -7,26 +7,21 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple, Optional
+from security_manager import get_writable_data_dir
 
 logger = logging.getLogger("cookie_manager")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
-os.makedirs(DATA_DIR, exist_ok=True)
+DATA_DIR = get_writable_data_dir()
 
 DEFAULT_COOKIES_FILE = os.path.join(DATA_DIR, "cookies.txt")
-COOKIES_FILE = os.getenv("COOKIES_FILE", DEFAULT_COOKIES_FILE)
+_env_cookies_file = os.getenv("COOKIES_FILE", DEFAULT_COOKIES_FILE)
+# إذا كان مسار COOKIES_FILE الممرر يقع في مجلد للقراءة فقط، نستخدم المسار القابل للكتابة في DATA_DIR
+if os.path.dirname(os.path.abspath(_env_cookies_file)) == os.path.abspath(BASE_DIR) and DATA_DIR != BASE_DIR:
+    COOKIES_FILE = DEFAULT_COOKIES_FILE
+else:
+    COOKIES_FILE = _env_cookies_file
 COOKIES_POOL_FILE = os.path.join(DATA_DIR, "cookies_pool.json")
-
-# إذا كان هناك ملف كوكيز قديم في BASE_DIR ولم ينشأ بعد في DATA_DIR، ننسخه تلقائياً
-if DATA_DIR != BASE_DIR:
-    base_cookie = os.path.join(BASE_DIR, "cookies.txt")
-    if os.path.exists(base_cookie) and not os.path.exists(DEFAULT_COOKIES_FILE) and os.path.getsize(base_cookie) > 45:
-        try:
-            import shutil
-            shutil.copy2(base_cookie, DEFAULT_COOKIES_FILE)
-        except Exception:
-            pass
 
 # مؤشر التدوير الدوري (Round-Robin Index) لمسبح الكوكيز
 _POOL_RR_INDEX = 0
@@ -266,12 +261,15 @@ def convert_cookies_to_netscape(cookies: List[Dict[str, Any]]) -> str:
 
 def get_active_cookie_path() -> Optional[str]:
     """العثور على مسار ملف الكوكيز الحالي النشط إذا كان موجوداً ويحتوي على كوكيز فعلية."""
-    candidates = [
-        COOKIES_FILE,
-        DEFAULT_COOKIES_FILE,
-        os.path.join(BASE_DIR, "cookies.txt"),
-        os.path.join(os.getcwd(), "cookies.txt"),
-    ]
+    if DATA_DIR != BASE_DIR and os.path.exists(DEFAULT_COOKIES_FILE):
+        candidates = [COOKIES_FILE, DEFAULT_COOKIES_FILE]
+    else:
+        candidates = [
+            COOKIES_FILE,
+            DEFAULT_COOKIES_FILE,
+            os.path.join(BASE_DIR, "cookies.txt"),
+            os.path.join(os.getcwd(), "cookies.txt"),
+        ]
     for path in candidates:
         if _file_has_cookie_entries(path):
             return os.path.abspath(path)
@@ -733,17 +731,20 @@ def save_cookies_content(raw_input: str, label: Optional[str] = None) -> Dict[st
 
 def clear_cookies_file(clear_pool: bool = True) -> bool:
     """مسح ملف الكوكيز تماماً للعودة الفورية لوضع الزائر."""
-    paths_to_clear = {
+    primary_paths = {
         COOKIES_FILE,
         DEFAULT_COOKIES_FILE,
+        os.path.join(DATA_DIR, "cookies_runtime.txt"),
+    }
+    optional_paths = {
         os.path.join(BASE_DIR, "cookies.txt"),
         os.path.join(BASE_DIR, "cookies_runtime.txt"),
-        os.path.join(DATA_DIR, "cookies_runtime.txt"),
         os.path.join(os.getcwd(), "cookies.txt"),
-    }
+    } - primary_paths
+
     ok = True
-    for p in paths_to_clear:
-        if p and os.path.exists(p):
+    for p in primary_paths:
+        if p:
             try:
                 with open(p, "w", encoding="utf-8") as f:
                     f.write("")
@@ -751,6 +752,14 @@ def clear_cookies_file(clear_pool: bool = True) -> bool:
             except Exception as e:
                 logger.error(f"Error clearing cookies file {p}: {e}")
                 ok = False
+
+    for p in optional_paths:
+        if p and os.path.exists(p):
+            try:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write("")
+            except Exception:
+                pass
 
     if clear_pool:
         _save_cookie_pool_raw([])

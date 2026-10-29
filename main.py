@@ -411,21 +411,20 @@ async def generate_po_token_endpoint(request: Request, admin: bool = Depends(req
 @app.post("/api/security/alerts/test", tags=["Security & Auth"])
 def test_alerts_endpoint(request: Request, admin: bool = Depends(require_admin)):
     """إرسال رسالة اختبار فورية إلى قنوات التنبيه المفعّلة (Telegram / Webhook)"""
-    res = send_system_alert(
+    ok, msg = send_system_alert(
         title="🔔 اختبار نظام التنبيهات الفورية",
         message="تم إرسال هذا التنبيه التجريبي بنجاح من لوحة تحكم YouTube Extractor API للتأكد من جاهزية الربط.",
         level="info",
         force=True
     )
-    if not res.get("sent"):
+    if not ok:
         raise HTTPException(
             status_code=400,
-            detail=f"تعذر إرسال التنبيه: {res.get('reason', 'تأكد من إدخال وحفظ إعدادات تيليجرام أو الـ Webhook أولاً')}"
+            detail=f"تعذر إرسال التنبيه: {msg}"
         )
     return {
         "success": True,
-        "message": f"تم إرسال التنبيه التجريبي بنجاح عبر ({', '.join(res.get('channels', []))}).",
-        "details": res
+        "message": msg
     }
 
 

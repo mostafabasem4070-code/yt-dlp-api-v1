@@ -3,9 +3,11 @@ import re
 import json
 import time
 import hmac
+import shutil
 import hashlib
 import secrets
 import logging
+import tempfile
 import urllib.request
 import urllib.parse
 from typing import List, Dict, Any, Optional, Tuple
@@ -15,23 +17,73 @@ import bcrypt
 logger = logging.getLogger("security_manager")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
-os.makedirs(DATA_DIR, exist_ok=True)
+_RESOLVED_DATA_DIR: Optional[str] = None
 
+
+def get_writable_data_dir() -> str:
+    """
+    تحديد مجلد البيانات القابل للكتابة:
+    - يجرب أولاً DATA_DIR أو BASE_DIR (/app).
+    - إذا كان نظام الملفات للقراءة فقط (Read-only file system كما في hostless.cloud / Kubernetes)،
+      ينتقل تلقائياً إلى /tmp/ytdlp_data وينسخ الملفات المبدئية وكاش التحديات إليه.
+    """
+    global _RESOLVED_DATA_DIR
+    if _RESOLVED_DATA_DIR is not None:
+        return _RESOLVED_DATA_DIR
+
+    candidate = os.getenv("DATA_DIR", BASE_DIR)
+    writable = False
+    try:
+        os.makedirs(candidate, exist_ok=True)
+        probe_file = os.path.join(candidate, f".write_probe_{os.getpid()}")
+        with open(probe_file, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(probe_file)
+        writable = True
+    except Exception:
+        writable = False
+
+    if not writable:
+        candidate = os.path.join(tempfile.gettempdir(), "ytdlp_data")
+        os.makedirs(candidate, exist_ok=True)
+        os.environ["DATA_DIR"] = candidate
+        # توجيه كاش XDG و Config إلى /tmp لضمان قدرة Deno و yt-dlp و Chromium على الكتابة
+        tmp_cache = os.path.join(tempfile.gettempdir(), ".cache")
+        tmp_config = os.path.join(tempfile.gettempdir(), ".config")
+        os.makedirs(tmp_cache, exist_ok=True)
+        os.makedirs(tmp_config, exist_ok=True)
+        os.environ["XDG_CACHE_HOME"] = tmp_cache
+        os.environ["XDG_CONFIG_HOME"] = tmp_config
+        solver_src = os.path.join(BASE_DIR, "challenge_solver_cache.json")
+        if os.path.exists(solver_src):
+            solver_dst_dir = os.path.join(tmp_cache, "yt-dlp", "challenge-solver")
+            os.makedirs(solver_dst_dir, exist_ok=True)
+            solver_dst = os.path.join(solver_dst_dir, "lib.json")
+            if not os.path.exists(solver_dst):
+                try:
+                    shutil.copy2(solver_src, solver_dst)
+                except Exception:
+                    pass
+        logger.info(f"Root directory is read-only; switched writable DATA_DIR to {candidate}")
+
+    # نسخ الملفات الأولية من BASE_DIR إلى DATA_DIR إن لم تكن موجودة بعد
+    if os.path.abspath(candidate) != os.path.abspath(BASE_DIR):
+        for fname in ("security_config.json", "sessions.json", "cookies.txt", "cookies_pool.json", "extraction_stats.db"):
+            src_p = os.path.join(BASE_DIR, fname)
+            dst_p = os.path.join(candidate, fname)
+            if os.path.exists(src_p) and not os.path.exists(dst_p):
+                try:
+                    shutil.copy2(src_p, dst_p)
+                except Exception:
+                    pass
+
+    _RESOLVED_DATA_DIR = candidate
+    return candidate
+
+
+DATA_DIR = get_writable_data_dir()
 CONFIG_FILE = os.path.join(DATA_DIR, "security_config.json")
 SESSIONS_FILE = os.path.join(DATA_DIR, "sessions.json")
-
-# إذا كان هناك ملف إعدادات قديم في BASE_DIR ولم ينشأ بعد في DATA_DIR، ننسخه تلقائياً
-if DATA_DIR != BASE_DIR:
-    for fname in ("security_config.json", "sessions.json"):
-        src_p = os.path.join(BASE_DIR, fname)
-        dst_p = os.path.join(DATA_DIR, fname)
-        if os.path.exists(src_p) and not os.path.exists(dst_p):
-            try:
-                import shutil
-                shutil.copy2(src_p, dst_p)
-            except Exception:
-                pass
 
 # Session store loaded from file
 _ACTIVE_SESSIONS: Dict[str, Dict[str, Any]] = {}
@@ -101,16 +153,18 @@ def _load_config() -> Dict[str, Any]:
                     cfg["alerts_enabled"] = bool(cfg["telegram_bot_token"] or cfg["webhook_url"])
                     needs_save = True
 
+                _CONFIG_CACHE = cfg
+                _CONFIG_MTIME = mtime
                 if needs_save:
                     _save_config(cfg)
-                else:
-                    _CONFIG_CACHE = cfg
-                    _CONFIG_MTIME = mtime
                 return cfg
         except Exception as e:
             logger.error(f"Failed to load security config: {e}")
             if _CONFIG_CACHE is not None:
                 return _CONFIG_CACHE
+
+    if _CONFIG_CACHE is not None:
+        return _CONFIG_CACHE
 
     # القيم الافتراضية مع قراءة متغيرات البيئة إن وجدت
     env_password = os.getenv("ADMIN_PASSWORD") or os.getenv("DASHBOARD_PASSWORD") or "97351294m"
@@ -147,11 +201,11 @@ def _load_config() -> Dict[str, Any]:
 def _save_config(config: Dict[str, Any]) -> bool:
     """حفظ إعدادات الأمان في ملف JSON دائم وتحديث الكاش الفوري"""
     global _CONFIG_CACHE, _CONFIG_MTIME
+    config["updated_at"] = int(time.time())
+    _CONFIG_CACHE = config
     try:
-        config["updated_at"] = int(time.time())
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
-        _CONFIG_CACHE = config
         _CONFIG_MTIME = os.path.getmtime(CONFIG_FILE)
         return True
     except Exception as e:

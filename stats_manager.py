@@ -5,23 +5,14 @@ import sqlite3
 import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from security_manager import get_writable_data_dir
 
 logger = logging.getLogger("stats_manager")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
-os.makedirs(DATA_DIR, exist_ok=True)
+DATA_DIR = get_writable_data_dir()
 
 DB_PATH = os.path.join(DATA_DIR, "extraction_stats.db")
-
-if DATA_DIR != BASE_DIR:
-    old_db = os.path.join(BASE_DIR, "extraction_stats.db")
-    if os.path.exists(old_db) and not os.path.exists(DB_PATH):
-        try:
-            import shutil
-            shutil.copy2(old_db, DB_PATH)
-        except Exception:
-            pass
 
 
 def extract_video_id(url: str) -> Optional[str]:

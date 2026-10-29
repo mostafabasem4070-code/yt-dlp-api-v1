@@ -18,12 +18,12 @@ from cookie_manager import (
     get_rotated_cookie_content,
     report_cookie_usage
 )
-from security_manager import get_security_settings, send_system_alert
+from security_manager import get_security_settings, send_system_alert, get_writable_data_dir
 
 logger = logging.getLogger("youtube_service")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
+DATA_DIR = get_writable_data_dir()
 DEFAULT_COOKIES_FILE = os.path.join(DATA_DIR, "cookies.txt")
 COOKIES_FILE = os.getenv("COOKIES_FILE", DEFAULT_COOKIES_FILE)
 

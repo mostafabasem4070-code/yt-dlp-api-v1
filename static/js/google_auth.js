@@ -190,6 +190,17 @@ async function fetchRemoteScreenshot() {
                 handleLoginSuccessful();
                 return;
             }
+            if (data.status === 'error' || data.status === 'timeout') {
+                stopRemoteBrowserStream();
+                const errMsg = data.error || data.message || 'حدث خطأ أثناء تشغيل المتصفح.';
+                setBrowserSpinner(true, `❌ ${errMsg}`);
+                if (typeof showToast === 'function') showToast(errMsg, 'error');
+                loadGoogleAuthStatus();
+                return;
+            }
+            if (data.message && (data.status === 'running' || data.status === 'waiting_login')) {
+                setBrowserSpinner(true, data.message);
+            }
             return;
         }
 

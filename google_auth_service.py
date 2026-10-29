@@ -18,13 +18,12 @@ import shutil
 from typing import Dict, Any, Optional
 
 from cookie_manager import save_cookies_content
-from security_manager import get_security_settings, update_security_preferences
+from security_manager import get_security_settings, update_security_preferences, get_writable_data_dir
 
 logger = logging.getLogger("google_auth_service")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
-os.makedirs(DATA_DIR, exist_ok=True)
+DATA_DIR = get_writable_data_dir()
 
 COOKIES_FILE = os.path.join(DATA_DIR, "cookies.txt")
 RUNTIME_COOKIES_FILE = os.path.join(DATA_DIR, "cookies_runtime.txt")
@@ -122,7 +121,7 @@ async def _ensure_chromium_installed() -> bool:
     وفي حال عدم وجوده (مثل بيئات Buildpacks على hostless.cloud) يتم تثبيته تلقائياً.
     """
     try:
-        from playwright.async_api import async_playwright
+        from playwright.async_api import async_playwright  # type: ignore
         async with async_playwright() as p:
             exec_path = p.chromium.executable_path
             if exec_path and os.path.exists(exec_path):
@@ -245,7 +244,7 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
     global _active_context, _active_page, _active_pw
 
     try:
-        from playwright.async_api import async_playwright
+        from playwright.async_api import async_playwright  # type: ignore
     except ImportError:
         _update_session(
             status="error",
@@ -280,6 +279,8 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
         _update_session(message="جاري فتح متصفح التخفي المستمر...")
 
         os.makedirs(BROWSER_PROFILE_DIR, exist_ok=True)
+        chromium_cache_dir = os.path.join(DATA_DIR, ".chromium_cache")
+        os.makedirs(chromium_cache_dir, exist_ok=True)
 
         launch_args = [
             "--no-sandbox",
@@ -289,6 +290,7 @@ async def _run_login_session(timeout_minutes: int, headless_override: Optional[b
             "--disable-dev-shm-usage",
             "--disable-gpu",
             "--disable-features=IsolateOrigins,site-per-process",
+            f"--disk-cache-dir={chromium_cache_dir}",
             "--window-size=1280,800",
             "--lang=ar-EG,ar",
         ]
@@ -443,7 +445,7 @@ async def auto_generate_po_token_and_visitor_data() -> Dict[str, Any]:
     وحفظهما في إعدادات النظام.
     """
     try:
-        from playwright.async_api import async_playwright
+        from playwright.async_api import async_playwright  # type: ignore
     except ImportError:
         return {
             "success": False,
@@ -591,7 +593,8 @@ async def capture_browser_screenshot() -> Dict[str, Any]:
     if not _active_page or _active_page.is_closed():
         return {
             "success": False,
-            "message": "لا يوجد متصفح نشط حالياً.",
+            "message": _auth_session.get("message") or "لا يوجد متصفح نشط حالياً.",
+            "error": _auth_session.get("error"),
             "status": _auth_session["status"]
         }
 
@@ -723,7 +726,7 @@ async def cancel_auth_session() -> Dict[str, Any]:
 def is_playwright_available() -> bool:
     """التحقق من تثبيت مكتبة Playwright."""
     try:
-        import playwright
+        import playwright  # type: ignore
         return True
     except ImportError:
         return False
