@@ -51,10 +51,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# تثبيت متصفح Chromium في المسار الموحد /ms-playwright مع منح صلاحيات القراءة والتشغيل لأي مستخدم في الحاوية
-RUN mkdir -p /ms-playwright \
-    && playwright install chromium \
-    && chmod -R 777 /ms-playwright
+# تثبيت Google Chrome الرسمي المستقر (لمعمارية amd64 المعتمدة لدى Google) مع احتياطي Chromium لغيرها
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+        curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb \
+        && apt-get update && apt-get install -y --no-install-recommends /tmp/chrome.deb \
+        && rm -f /tmp/chrome.deb \
+        && rm -rf /var/lib/apt/lists/*; \
+    else \
+        mkdir -p /ms-playwright && playwright install chromium && chmod -R 777 /ms-playwright; \
+    fi
 
 # نسخ وتجهيز كاش مكتبة فك التحديات (challenge-solver) لضمان عمل Deno فورياً سواء عملت الحاوية كـ root أو مستخدم عادي
 RUN mkdir -p /root/.cache/yt-dlp/challenge-solver /app/.cache/yt-dlp/challenge-solver
